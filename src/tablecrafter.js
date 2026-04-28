@@ -659,6 +659,11 @@ class TableCrafter {
   }
 
   render() {
+    // Plugin lifecycle: beforeRender. Cancel-on-false skips the entire render.
+    if (this._fireHook && this._fireHook('beforeRender', { table: this }) === false) {
+      return;
+    }
+
     const _renderStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     // Check if we are hydrating (SSR content already present)
     const isHydrating = this.container.dataset.ssr === "true" &&
@@ -756,6 +761,9 @@ class TableCrafter {
 
     const _renderEnd = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     this._lastRenderMs = _renderEnd - _renderStart;
+
+    // Plugin lifecycle: afterRender. Return value is ignored.
+    if (this._fireHook) this._fireHook('afterRender', { table: this });
   }
 
   /**
@@ -4675,6 +4683,30 @@ class TableCrafter {
 
   getVisibleColumns() {
     return (this.config.columns || []).filter(col => col.hidden !== true).slice();
+  }
+
+  /**
+   * Fire a named lifecycle hook across all registered plugins, in registration
+   * order. Returns false if any handler returned false or threw — callers in
+   * `before*` paths use that as the cancel signal. `after*` callers may ignore
+   * the return value. Errors are caught and warned so a single bad plugin
+   * cannot break the table.
+   */
+  _fireHook(name, payload) {
+    let proceed = true;
+    if (!Array.isArray(this._plugins)) return proceed;
+    for (const record of this._plugins) {
+      const fn = record.plugin && record.plugin.hooks && record.plugin.hooks[name];
+      if (typeof fn !== 'function') continue;
+      try {
+        const result = fn.call(record.plugin, payload, this);
+        if (result === false) proceed = false;
+      } catch (e) {
+        console.warn(`TableCrafter: plugin "${record.plugin.name}" threw in hook "${name}":`, e);
+        proceed = false;
+      }
+    }
+    return proceed;
   }
 
   /**
