@@ -708,6 +708,18 @@ class TableCrafter {
       this._applyTheme(wrapper);
     }
 
+    // i18n: apply dir="rtl" + tc-rtl class when the active locale resolves
+    // to an RTL language. Strip them otherwise so a setLocale flip cleans up.
+    if (typeof this.isRTL === 'function') {
+      if (this.isRTL()) {
+        wrapper.setAttribute('dir', 'rtl');
+        wrapper.classList.add('tc-rtl');
+      } else {
+        wrapper.removeAttribute('dir');
+        wrapper.classList.remove('tc-rtl');
+      }
+    }
+
     // Add global search if enabled
     if (this.config.globalSearch) {
       const searchContainer = this.renderGlobalSearch();
@@ -3476,6 +3488,63 @@ class TableCrafter {
     if (this.config.i18n.locale === locale) return;
     this.config.i18n.locale = locale;
     this.render();
+  }
+
+  /**
+   * True when the active locale is an RTL language. Driven by the language
+   * subtag (the part before the first '-'), so 'ar', 'ar-EG', and 'ARA' all
+   * resolve to true. Recognises ar / arc / dv / fa / ha / he / khw / ks /
+   * ku / ps / sd / ur / uz_AL / yi.
+   */
+  isRTL() {
+    // Explicit config.dir override takes precedence over locale detection.
+    if (this.config && this.config.dir === 'rtl') return true;
+    const locale = this._resolveLocale();
+    if (!locale) return false;
+    const lang = String(locale).toLowerCase().split(/[-_]/)[0];
+    const rtlLangs = new Set(['ar', 'arc', 'dv', 'fa', 'ha', 'he', 'khw', 'ks', 'ku', 'ps', 'sd', 'ur', 'yi']);
+    return rtlLangs.has(lang);
+  }
+
+  /**
+   * Format a number with Intl.NumberFormat using the active locale.
+   * - null / undefined → ''
+   * - non-numeric input → returned unchanged so callers can pass through
+   *   already-formatted strings without an explicit type guard.
+   * Per-call options merge over `config.i18n.formats.number` defaults.
+   */
+  formatNumber(value, options) {
+    if (value === null || value === undefined) return '';
+    const num = typeof value === 'number' ? value : Number(value);
+    if (Number.isNaN(num)) return String(value);
+
+    const i18n = (this.config && this.config.i18n) || {};
+    const defaults = (i18n.formats && i18n.formats.number) || {};
+    const merged = Object.assign({}, defaults, options || {});
+    try {
+      return new Intl.NumberFormat(this._resolveLocale(), merged).format(num);
+    } catch (e) {
+      return String(num);
+    }
+  }
+
+  /**
+   * Format a Date / ISO string / epoch ms with Intl.DateTimeFormat using the
+   * active locale. Invalid / null / undefined input returns ''.
+   */
+  formatDate(value, options) {
+    if (value === null || value === undefined) return '';
+    const date = (value instanceof Date) ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+
+    const i18n = (this.config && this.config.i18n) || {};
+    const defaults = (i18n.formats && i18n.formats.date) || {};
+    const merged = Object.assign({}, defaults, options || {});
+    try {
+      return new Intl.DateTimeFormat(this._resolveLocale(), merged).format(date);
+    } catch (e) {
+      return date.toISOString();
+    }
   }
 
   /**
