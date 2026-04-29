@@ -2,7 +2,7 @@
  * Conditional formatting — kind: 'dataBar' shorthand (slice 4 of #51).
  * Stacked on PR #98 (kind: 'icon').
  *
- * Renders a horizontal bar inside the cell as a child <span class="tc-cf-databar">
+ * Renders a horizontal bar inside the cell as a child <span class="tc-databar">
  * whose inline-style width is (value - min) / (max - min) * 100%.
  * Min/max come from the rule when explicit, otherwise are auto-computed
  * from this.data values for that field.
@@ -29,7 +29,7 @@ function makeTable(rules) {
 }
 
 function widthOf(cell) {
-  const bar = cell.querySelector('.tc-cf-databar');
+  const bar = cell.querySelector('.tc-databar');
   if (!bar) return null;
   return bar.style.width;
 }
@@ -92,7 +92,7 @@ describe('Conditional formatting: kind: "dataBar"', () => {
     table.render();
 
     const cells = document.querySelectorAll('td[data-field="score"]');
-    expect(cells[0].querySelector('.tc-cf-databar')).toBeNull();
+    expect(cells[0].querySelector('.tc-databar')).toBeNull();
     expect(widthOf(cells[1])).toBe('50%');
   });
 
