@@ -6344,7 +6344,7 @@ class TableCrafter {
    * Read-only probe of the runtime's Web Platform features. Consumers can
    * pair this with `minimumBrowserSupportNotice()` to render a graceful
    * "your browser is too old" banner when `requiredFeaturesAvailable` is
-   * `false`. Never mutates global state and never throws — every probe is
+   * `false`. Never mutates global state and never throws -- every probe is
    * wrapped so a missing `CSS` / `ResizeObserver` / etc. is just `false`.
    */
   static getBrowserSupport() {
@@ -6375,6 +6375,63 @@ class TableCrafter {
 
   static minimumBrowserSupportNotice() {
     return 'TableCrafter requires Chrome 88+, Firefox 89+, Safari 15+, or Edge 88+. Older browsers may render the table but will be missing internationalisation, abortable loads, and high-resolution timing.';
+  }
+
+  /**
+   * Auto-instantiate TableCrafter on every `[data-tc-bootstrap]` element
+   * inside the supplied scope (or the whole document when no scope is given).
+   * The bootstrap config is read from each element's `data-tc-config`
+   * attribute as JSON.
+   *
+   * Idempotent: re-running over the same DOM returns the existing instance
+   * for already-bootstrapped elements rather than constructing a duplicate.
+   * Malformed config emits a single console.warn per element and is
+   * skipped -- one bad embed cannot break a page with several tables.
+   *
+   * Returns Map<HTMLElement, TableCrafter>.
+   */
+  static bootstrap(scope) {
+    if (typeof document === 'undefined') return new Map();
+    if (!TableCrafter._bootstrapped) TableCrafter._bootstrapped = new WeakMap();
+
+    let root = document;
+    if (typeof scope === 'string' && scope) {
+      root = document.querySelector(scope);
+      if (!root) return new Map();
+    } else if (scope && scope.querySelectorAll) {
+      root = scope;
+    }
+
+    const elements = root.querySelectorAll('[data-tc-bootstrap]');
+    const map = new Map();
+    for (const el of elements) {
+      // Idempotency: already bootstrapped - return the existing instance.
+      const prior = TableCrafter._bootstrapped.get(el);
+      if (prior) {
+        map.set(el, prior);
+        continue;
+      }
+
+      const raw = el.getAttribute('data-tc-config') || '';
+      let cfg = {};
+      if (raw) {
+        try {
+          cfg = JSON.parse(raw);
+        } catch (e) {
+          console.warn(`TableCrafter.bootstrap: invalid data-tc-config on element`, el);
+          continue;
+        }
+      }
+
+      try {
+        const instance = new TableCrafter(el, cfg);
+        TableCrafter._bootstrapped.set(el, instance);
+        map.set(el, instance);
+      } catch (e) {
+        console.warn('TableCrafter.bootstrap: failed to instantiate', e);
+      }
+    }
+    return map;
   }
 }
 
