@@ -383,6 +383,12 @@ class TableCrafter {
    * Load data from URL
    */
   async loadData() {
+    // Plugin lifecycle: beforeLoad. Cancel-on-false aborts before any fetch
+    // is issued and before the loading skeleton is shown.
+    if (this._fireHook && this._fireHook('beforeLoad', { source: this.dataUrl }) === false) {
+      return this.data;
+    }
+
     // Cancel any in-flight request before starting a new one
     if (this._loadController) {
       this._loadController.abort();
@@ -421,6 +427,7 @@ class TableCrafter {
            this.detectFilterTypes();
            this.container.dataset.ssr = "false";
            this.render();
+           if (this._fireHook) this._fireHook('afterLoad', { data: this.data });
          } catch (e) {
            if (e && e.name === 'AbortError') {
              // Superseded by a newer loadData() — leave SSR content alone.
@@ -445,6 +452,7 @@ class TableCrafter {
 
       this.autoDiscoverColumns();
       this.render();
+      if (this._fireHook) this._fireHook('afterLoad', { data: this.data });
     } catch (error) {
       if (error && error.name === 'AbortError') {
         // Cancelled by a newer loadData() call — benign, do not surface.
