@@ -2338,6 +2338,12 @@ class TableCrafter {
     const append = options.append === true;
     const explicitDirection = options.direction;
 
+    // Plugin lifecycle: beforeSort. Cancel-on-false aborts the sort entirely
+    // — sortKeys are not mutated, data order is preserved, and afterSort does not fire.
+    if (this._fireHook && this._fireHook('beforeSort', { field, options }) === false) {
+      return;
+    }
+
     if (append) {
       const existing = this.sortKeys.find(k => k.field === field);
       if (existing) {
@@ -2422,6 +2428,11 @@ class TableCrafter {
     this.saveState();
     this.render();
     this._emit('sort', { sortKeys: [...this.sortKeys] });
+
+    // Plugin lifecycle: afterSort. Return value is ignored.
+    if (this._fireHook) {
+      this._fireHook('afterSort', { field: this.sortField, order: this.sortOrder });
+    }
   }
 
   /**
