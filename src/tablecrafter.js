@@ -4734,6 +4734,41 @@ class TableCrafter {
     return s;
   }
 
+  _parseFormulaExpression(ctx) {
+    let left = this._parseFormulaAdditive(ctx);
+    if (left === null) return null;
+    if (ctx.error || ctx.pos >= ctx.tokens.length) return left;
+    const tok = ctx.tokens[ctx.pos];
+    if (tok.type !== 'cmp') return left;
+    ctx.pos++;
+    const right = this._parseFormulaAdditive(ctx);
+    if (right === null) return null;
+    switch (tok.value) {
+      case '>':  return left >  right ? 1 : 0;
+      case '<':  return left <  right ? 1 : 0;
+      case '>=': return left >= right ? 1 : 0;
+      case '<=': return left <= right ? 1 : 0;
+      case '==': return left === right ? 1 : 0;
+      case '!=': return left !== right ? 1 : 0;
+      default: ctx.error = `unknown cmp ${tok.value}`; return null;
+    }
+  }
+
+  _parseFormulaAdditive(ctx) {
+    let left = this._parseFormulaTerm(ctx);
+    if (left === null) return null;
+    while (!ctx.error && ctx.pos < ctx.tokens.length) {
+      const tok = ctx.tokens[ctx.pos];
+      if (tok.type === 'op' && (tok.value === '+' || tok.value === '-')) {
+        ctx.pos++;
+        const right = this._parseFormulaTerm(ctx);
+        if (right === null) return null;
+        left = tok.value === '+' ? left + right : left - right;
+      } else break;
+    }
+    return left;
+  }
+
   _splitFormulaArgs(s) {
     const args = [];
     let depth = 0, start = 0;
@@ -4821,6 +4856,26 @@ class TableCrafter {
       if (ch === '+' || ch === '-' || ch === '*' || ch === '/') {
         tokens.push({ type: 'op', value: ch });
         i++;
+        continue;
+      }
+      if (ch === '>' || ch === '<') {
+        if (s[i + 1] === '=') {
+          tokens.push({ type: 'cmp', value: ch + '=' });
+          i += 2;
+        } else {
+          tokens.push({ type: 'cmp', value: ch });
+          i++;
+        }
+        continue;
+      }
+      if (ch === '=' && s[i + 1] === '=') {
+        tokens.push({ type: 'cmp', value: '==' });
+        i += 2;
+        continue;
+      }
+      if (ch === '!' && s[i + 1] === '=') {
+        tokens.push({ type: 'cmp', value: '!=' });
+        i += 2;
         continue;
       }
       if (ch === '(') { tokens.push({ type: 'lparen' }); i++; continue; }
