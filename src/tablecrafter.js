@@ -114,17 +114,14 @@ class TableCrafter {
         headers: {},
         authentication: null
       },
-      // i18n configuration (foundation only — pluralisation, RTL,
-      // formatNumber/Date are tracked in follow-ups for #40)
+      // i18n configuration
       i18n: {
         locale: null,            // null = resolve from document at construction time
         fallbackLocale: 'en',
         messages: {},
         formats: {}
       },
-      // Conditional formatting configuration (foundation only — render-loop
-      // wiring, dataBar / colorScale / icon kinds, and aria-label parity
-      // are tracked in #51 follow-ups)
+      // Conditional formatting configuration
       conditionalFormatting: {
         enabled: false,
         rules: []
@@ -258,21 +255,39 @@ class TableCrafter {
     }
 
     switch (type) {
-      case 'date':
-        // Try to parse date
+      case 'number': {
+        const numFmt = (this.config && this.config.i18n && this.config.i18n.formats && this.config.i18n.formats.formatNumber);
+        if (numFmt) {
+          const locale = this._resolveLocale();
+          if (typeof numFmt === 'function') {
+            return numFmt(Number(value), locale);
+          }
+          return new Intl.NumberFormat(locale, numFmt).format(Number(value));
+        }
+        return value.toString();
+      }
+
+      case 'date': {
         const date = new Date(value);
         if (isNaN(date.getTime())) return value;
-        
+        const dateFmt = (this.config && this.config.i18n && this.config.i18n.formats && this.config.i18n.formats.formatDate);
+        if (typeof dateFmt === 'function') {
+          return dateFmt(value, this._resolveLocale());
+        }
         return date.toLocaleDateString(undefined, {
           year: 'numeric',
           month: 'short',
           day: 'numeric'
         });
-      
-      case 'datetime':
+      }
+
+      case 'datetime': {
         const dt = new Date(value);
         if (isNaN(dt.getTime())) return value;
-
+        const dtFmt = (this.config && this.config.i18n && this.config.i18n.formats && this.config.i18n.formats.formatDate);
+        if (typeof dtFmt === 'function') {
+          return dtFmt(value, this._resolveLocale());
+        }
         return dt.toLocaleString(undefined, {
           year: 'numeric',
           month: 'short',
@@ -280,31 +295,31 @@ class TableCrafter {
           hour: '2-digit',
           minute: '2-digit'
         });
+      }
 
-      case 'boolean':
+      case 'boolean': {
         const isTrue = value === true || value === 'true' || value === 1 || value === '1';
-        return isTrue 
-          ? '<span class="tc-badge tc-badge-success">Yes</span>' 
+        return isTrue
+          ? '<span class="tc-badge tc-badge-success">Yes</span>'
           : '<span class="tc-badge tc-badge-error">No</span>';
+      }
 
       case 'email':
         return `<a href="mailto:${value}" class="tc-link">${value}</a>`;
 
-      case 'url':
+      case 'url': {
         let url = value.toString();
-        // Ensure protocol
         if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-        // Truncate for display
         const displayUrl = value.length > 30 ? value.substring(0, 27) + '...' : value;
         return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="tc-link">${displayUrl}</a>`;
+      }
 
       case 'image':
-         return `<img src="${value}" alt="Image" class="tc-cell-image" style="max-height: 50px; border-radius: 4px;">`;
+        return `<img src="${value}" alt="Image" class="tc-cell-image" style="max-height: 50px; border-radius: 4px;">`;
 
       default:
-        // Basic XSS protection for unknown types if it's a string
         if (typeof value === 'string') {
-             return value;
+          return value;
         }
         return value.toString();
     }
@@ -3533,9 +3548,6 @@ class TableCrafter {
    * Supports: whitespace AND, OR (case-insensitive), -negation,
    * "quoted phrase", field:value (value may be quoted).
    *
-   * Comparison operators (>, <, =), regex literals, and wildcards are
-   * tracked for follow-up PRs in #59.
-   *
    * AST node shapes:
    *   { type: 'and',    children: Node[] }
    *   { type: 'or',     children: Node[] }
@@ -4569,6 +4581,9 @@ class TableCrafter {
     }
     if (op === 'count') {
       return source.filter(r => r[field] != null).length;
+    }
+    if (op === 'distinct') {
+      return new Set(source.map(r => r[field]).filter(v => v != null)).size;
     }
     const numeric = source
       .filter(r => r[field] != null)

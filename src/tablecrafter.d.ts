@@ -233,7 +233,10 @@ export interface TableCrafterConfig {
     locale?: string | null;
     fallbackLocale?: string;
     messages?: Record<string, Record<string, string>>;
-    formats?: Record<string, unknown>;
+    formats?: {
+      formatNumber?: Intl.NumberFormatOptions | ((value: number, locale: string) => string);
+      formatDate?: (value: string | Date, locale: string) => string;
+    };
   };
 
   // Conditional formatting
