@@ -55,8 +55,8 @@ These are NOT parity gaps and will not get issues:
 | Auto-refresh + last-updated | Free | none | GAP-JS |
 | Skeleton loader | Free | none | GAP-JS |
 | Virtual scrolling / DOM windowing | Free (v8.0.18) | API exists, never consulted by renderer (stub) | GAP-JS (wire it) |
-| Cell range selection + copy TSV | none | SOLID | GAP-WP |
-| Context menu (right-click) | none | SOLID (ARIA menu) | GAP-WP |
+| Cell range selection + copy TSV | none | partial: selectRange/copySelectionAsTSV API real, no shift-click/drag DOM wiring | GAP-WP + finish DOM wiring in JS (#206) |
+| Context menu (right-click) | none | partial: openContextMenu API with ARIA, no trigger binding, positioning, or keyboard nav | GAP-WP + finish trigger/positioning in JS (#44) |
 | RTL | Free | SOLID (locale-driven) | OK |
 | Custom CSS/theming | Free (per-table CSS, presets) | CSS custom properties + theme attr; no shipped named themes | GAP-JS (ship 2-3 named themes) |
 | Accessibility | WCAG 2.1 AA pass | good ARIA; no aria-live regions | GAP-JS (aria-live) |
