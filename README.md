@@ -1,339 +1,414 @@
 # TableCrafter.js
 
-Advanced data table library tracking full TableCrafter plugin parity (see [docs/PARITY.md](docs/PARITY.md)) - zero dependencies, mobile-first, API-ready.
+**The zero-dependency JavaScript data table that turns any array, API, or CSV into an editable, filterable, mobile-ready table.**
 
-> **WordPress Plugin Migration**: A capable standalone replacement for WordPress Gravity Tables, tracking full feature parity with the TableCrafter plugin. See [docs/PARITY.md](docs/PARITY.md) for the current gap status.
+[![npm version](https://img.shields.io/npm/v/tablecrafter)](https://www.npmjs.com/package/tablecrafter)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![~27 KB min+gz](https://img.shields.io/badge/size-~27%20KB%20min%2Bgz-brightgreen)](#installation)
 
-📖 **[Complete Documentation](https://tablecrafter.github.io/docs/)** | 🎯 **[Live Examples](https://tablecrafter.github.io/docs/examples/basic)** | 🔗 **[API Reference](https://tablecrafter.github.io/docs/api/tablecrafter)**
+```js
+import TableCrafter from 'tablecrafter';
 
-## WordPress Parity Features
+const table = new TableCrafter('#my-table', {
+  data: '/api/employees',
+  columns: [{ field: 'name', label: 'Name', editable: true }],
+  editable: true,
+});
+table.render();
+```
 
-- 🔍 **Advanced Filtering** - Auto-detection, multiselect, date ranges, number ranges
-- ✨ **Smart Data Formatting** - Auto-format ISO dates, URLs, emails, and booleans into rich HTML
-- ⚡ **Bulk Operations** - Multi-row selection, progress indicators, custom actions
-- 🔗 **Lookup Fields** - API-driven dropdowns with caching and role-based filtering
-- 🛡️ **Permission System** - Role-based access control with user context
-- 📱 **Enhanced Mobile Cards** - Expandable sections with field visibility controls
-- 💾 **State Persistence** - Remember filters, sorting, pagination across sessions
-- 🔄 **API Integration** - RESTful CRUD operations with authentication
-- ✏️ **Advanced Editing** - Inline editing with lookup dropdowns and validation
+---
 
-## Core Features
+## Why TableCrafter.js
 
-- 🚀 **Zero Dependencies** - Pure vanilla JavaScript (45KB bundle)
-- 📱 **Mobile First** - Touch-optimized with expandable card layouts
-- 🌐 **Framework Agnostic** - React, Vue, Angular, WordPress, or vanilla HTML
-- 🔧 **Enterprise Ready** - Permissions, bulk operations, API integration
-- 🎨 **Highly Customizable** - CSS variables, themes, component styling
-- 📊 **Performance Optimized** - Virtual scrolling, efficient rendering
+- **No build step required.** Drop the UMD script on any page and you are done. No bundler, no framework, no fuss.
+- **Spreadsheet-grade editing in the browser.** 14 built-in cell editors, 15+ validation rules, lookup dropdowns, formula columns, and a custom cell-type registry -- all without a server round-trip per keypress.
+- **Mobile cards, not squished columns.** The responsive card layout collapses rows into readable cards at configurable breakpoints instead of making users scroll sideways.
+- **Your data stays yours.** No SaaS, no telemetry, no external requests unless you point it at your own API. MIT licensed.
+
+---
+
+## Feature grid
+
+### Display
+
+| Feature | Details |
+|---|---|
+| Multi-column sort | Unlimited sort keys, shift-click, badges, custom comparators |
+| Per-column filters | Text, multiselect, date range, number range; type auto-detection |
+| Advanced search grammar | AND / OR / negation / `field:value` / regex / comparison operators |
+| Mobile card view | Responsive breakpoints, expandable sections, field-level visibility |
+| Formula columns | Arithmetic and function library evaluated per row |
+| Conditional formatting | Data bars, color scales, icon sets |
+| Cell renderers | Badge, link, progress bar, sparkline built-in |
+| Cell range selection | Click-drag range with TSV clipboard copy |
+| Right-click context menu | ARIA-compliant, fully configurable items |
+| Column management | Programmatic reorder, show/hide, pin left/right |
+| RTL support | Locale-driven layout flip |
+| i18n | 6 bundled locales: en, es, fr, de, ar, ur |
+
+### Editing
+
+| Feature | Details |
+|---|---|
+| 14 inline cell editors | text, textarea, number, email, date, datetime, select, multiselect, checkbox, radio, file, url, color, range |
+| Custom cell type registry | `registerCellType()` for any editor |
+| 15+ validation rules | required, minLength, maxLength, min, max, pattern, email, url, phone, date bounds, oneOf, notOneOf, unique, custom function |
+| Add row modal | Built-in creation form with full validation |
+| Bulk operations | Multi-row select, delete, export, custom actions |
+| Role-based permissions | Per-action (view/edit/delete/create), row-level `ownOnly` ownership |
+
+### Data
+
+| Feature | Details |
+|---|---|
+| Inline data | Plain JavaScript array |
+| REST API | Fetch from any URL; custom auth headers; `root` path; CRUD write-back |
+| CSV export | RFC-4180, filtered, injection-safe |
+| JSON export | Serialized current dataset |
+| XLSX / PDF export | Requires optional peer deps -- see [#325](https://github.com/TableCrafter/tablecrafter.js/issues/325) |
+| State persistence | localStorage / sessionStorage; saves filters, sort, page |
+| Plugin system | `use(plugin, opts)` / `unuse(name)` extension points |
+
+### Platform
+
+| Feature | Details |
+|---|---|
+| Zero runtime dependencies | Pure vanilla JavaScript |
+| ESM + CJS + UMD builds | Works with webpack, Vite, Rollup, or a plain `<script>` tag |
+| TypeScript definitions | Full `.d.ts` included (`src/tablecrafter.d.ts`) |
+| Framework-agnostic | React, Vue, Svelte, Angular, or plain HTML |
+| 48-file Jest suite | 808 passing tests |
+
+---
 
 ## Installation
 
-### NPM
+### CDN (no build step)
+
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tablecrafter@2/dist/tablecrafter.css">
+<script src="https://cdn.jsdelivr.net/npm/tablecrafter@2/dist/tablecrafter.umd.min.js"></script>
+```
+
+The global is `TableCrafter`.
+
+### npm
+
 ```bash
 npm install tablecrafter
 ```
 
-### CDN
-```html
-<script src="https://unpkg.com/tablecrafter@latest/dist/tablecrafter.min.js"></script>
+```js
+import TableCrafter from 'tablecrafter';
+import 'tablecrafter/dist/tablecrafter.css';
 ```
 
-## Quick Start
+---
 
-### Basic Usage
+## Quick start
+
 ```html
 <div id="my-table"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/tablecrafter@2/dist/tablecrafter.umd.min.js"></script>
 <script>
-const data = [
-    { id: 1, name: 'John Doe', email: 'john@example.com', department: 'Engineering' },
-    { id: 2, name: 'Jane Smith', email: 'jane@example.com', department: 'Design' },
-    { id: 3, name: 'Bob Johnson', email: 'bob@example.com', department: 'Management' }
-];
-
 const table = new TableCrafter('#my-table', {
-    data: data,
-    columns: [
-        { field: 'id', label: 'ID' },
-        { field: 'name', label: 'Name', editable: true },
-        { field: 'email', label: 'Email', editable: true },
-        { field: 'department', label: 'Department', editable: true }
-    ],
-    editable: true,
-    responsive: true,
-    pagination: true
+  data: [
+    { id: 1, name: 'Alice', role: 'Engineer' },
+    { id: 2, name: 'Bob',   role: 'Designer' },
+  ],
+  columns: [
+    { field: 'id',   label: 'ID' },
+    { field: 'name', label: 'Name',       editable: true },
+    { field: 'role', label: 'Role',       editable: true },
+  ],
+  editable: true,
+  filterable: true,
+  pagination: true,
 });
-
 table.render();
 </script>
 ```
 
-### WordPress Parity Features
-```javascript
-const advancedTable = new TableCrafter('#advanced-table', {
-    data: '/api/employees',
-    
-    // Advanced filtering with auto-detection
-    filters: {
-        advanced: true,
-        autoDetect: true,
-        showClearAll: true
-    },
-    
-    // Bulk operations
-    bulk: {
-        enabled: true,
-        operations: ['delete', 'export', 'promote']
-    },
-    
-    // API integration
-    api: {
-        baseUrl: '/api/employees',
-        authentication: { type: 'bearer', token: 'jwt-token' }
-    },
-    
-    // Permission system
-    permissions: {
-        enabled: true,
-        edit: ['admin', 'manager'],
-        delete: ['admin']
-    },
-    
-    // State persistence
-    state: { persist: true }
-});
+---
 
-// Set user context for permissions
-table.setCurrentUser({ id: 1, roles: ['admin'] });
+## Live examples
+
+The `examples/` directory contains runnable HTML files. Start any static server from the repo root:
+
+```bash
+python -m http.server 8000
+# then open http://localhost:8000/examples/advanced-features.html
+```
+
+---
+
+## WordPress?
+
+TableCrafter.js shares feature DNA with the **TableCrafter WordPress plugin**. If you need server-side data sources, Gravity Forms write-back, Gutenberg blocks, or WooCommerce integration, the plugin handles those. For the current gap status between the two, see [docs/PARITY.md](docs/PARITY.md).
+
+Visit [tablecrafter.com](https://tablecrafter.com) for the plugin.
+
+---
+
+## Configuration reference
+
+Constructor: `new TableCrafter(container, config)` where `container` is a CSS selector string or `HTMLElement`.
+
+### Core options
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `data` | `array \| string` | `[]` | Row data or URL to fetch |
+| `columns` | `array` | `[]` | Column definitions (required) |
+| `editable` | `boolean` | `false` | Enable inline editing globally |
+| `sortable` | `boolean` | `true` | Enable column sorting |
+| `filterable` | `boolean` | `true` | Enable per-column filters |
+| `globalSearch` | `boolean` | `true` | Enable the search grammar bar |
+| `pagination` | `boolean` | `false` | Enable pagination |
+| `pageSize` | `number` | `25` | Rows per page |
+| `exportable` | `boolean` | `false` | Show CSV export button |
+| `exportFilename` | `string` | `'table-export.csv'` | Default download filename |
+
+### Column definition
+
+```js
+{
+  field: 'email',       // data key (required)
+  label: 'Email',       // header text
+  type: 'email',        // cell renderer: text|badge|link|progress|sparkline|...
+  editable: true,       // enable this column for editing
+  sortable: true,
+  filterable: true,
+  formula: 'price * qty', // computed column expression
+  lookup: {
+    url: '/api/users',
+    valueField: 'id',
+    labelField: 'name',
+  },
+}
+```
+
+---
+
+## Editing and validation example
+
+```js
+const table = new TableCrafter('#table', {
+  data: rows,
+  columns: [
+    { field: 'email', label: 'Email', editable: true },
+    { field: 'age',   label: 'Age',   editable: true },
+  ],
+  validation: {
+    rules: {
+      email: [{ type: 'required' }, { type: 'email' }],
+      age:   [{ type: 'min', value: 18 }, { type: 'max', value: 120 }],
+    },
+  },
+  onEdit({ row, field, value }) {
+    console.log(`${field} changed to`, value);
+  },
+});
 table.render();
 ```
 
-📖 **[View Complete Documentation](https://tablecrafter.github.io/docs/guide/getting-started)**
+---
 
-## Configuration Options
+## Permissions example
 
-```javascript
-const config = {
-    data: [],                    // Array of objects or URL string
-    columns: [],                 // Column definitions (required)
-    editable: false,             // Enable inline editing
-    responsive: true,            // Enable mobile card view
-    mobileBreakpoint: 768,       // Pixel width for mobile view
-    pagination: false,           // Enable pagination
-    pageSize: 25,               // Rows per page
-    sortable: true,             // Enable column sorting
-    filterable: true,           // Enable filtering
-    exportable: false,          // Enable CSV export
-    exportFilename: 'export.csv', // Default export filename
-    onEdit: function(change) {  // Callback for edits
-        console.log('Cell edited:', change);
+```js
+const table = new TableCrafter('#table', {
+  data: rows,
+  columns,
+  permissions: {
+    enabled: true,
+    edit:   ['admin', 'manager'],
+    delete: ['admin'],
+    ownOnly: true,   // users see only rows they own
+  },
+});
+
+table.setCurrentUser({ id: 42, roles: ['manager'], username: 'alice' });
+table.render();
+```
+
+---
+
+## i18n example
+
+```js
+const table = new TableCrafter('#table', {
+  data: rows,
+  columns,
+  i18n: {
+    locale: 'ar',           // Arabic -- triggers RTL layout automatically
+    fallbackLocale: 'en',
+    messages: {
+      ar: { 'search.placeholder': 'ابحث...' },
     },
-    onSort: function(column, direction) {  // Callback for sorting
-        console.log('Sorted by:', column, direction);
-    }
+  },
+});
+```
+
+Six locales are bundled: `en`, `es`, `fr`, `de`, `ar`, `ur`. RTL is applied automatically for `ar` and `ur`.
+
+---
+
+## Plugin system example
+
+```js
+const myPlugin = {
+  name: 'my-plugin',
+  install(table, opts) {
+    // extend or monkey-patch `table` here
+    console.log('installed with', opts);
+  },
 };
+
+const table = new TableCrafter('#table', {
+  data: rows,
+  columns,
+  plugins: [[myPlugin, { debug: true }]],
+});
 ```
 
-## Column Configuration
+---
 
-```javascript
-const columns = [
-    {
-        field: 'id',           // Data field name (required)
-        label: 'ID',           // Display label (required)
-        editable: false,       // Can this column be edited?
-        sortable: true,        // Can this column be sorted?
-        filterable: true       // Can this column be filtered?
-    },
-    {
-        field: 'name',
-        label: 'Full Name',
-        editable: true,
-        sortable: true
-    }
+## TypeScript
+
+The package ships `src/tablecrafter.d.ts` with full generics. The `types` field in `package.json` points to it automatically, so no extra configuration is needed in most projects.
+
+```ts
+import TableCrafter, { TableCrafterConfig, TableCrafterColumn } from 'tablecrafter';
+
+const columns: TableCrafterColumn[] = [
+  { field: 'id', label: 'ID' },
+  { field: 'name', label: 'Name', editable: true },
 ];
+
+const table = new TableCrafter('#table', { data: [], columns });
+table.render();
 ```
 
-## API Methods
+---
 
-### Data Management
-- `table.render()` - Render/re-render the table
-- `table.getData()` - Get current filtered data
-- `table.setData(data)` - Replace table data
-- `table.addRow(rowData)` - Add a new row
-- `table.removeRow(index)` - Remove row by index
-- `table.updateRow(index, rowData)` - Update specific row
+## Framework integration
 
-### Filtering & Sorting
-- `table.setFilter(column, value)` - Set filter for specific column
-- `table.clearFilters()` - Clear all filters
-- `table.sort(column, direction)` - Sort by column ('asc' or 'desc')
+### React
 
-### Export
-- `table.exportCSV()` - Export current data to CSV
-- `table.exportCSV(filename)` - Export with custom filename
+```jsx
+import { useEffect, useRef } from 'react';
+import TableCrafter from 'tablecrafter';
 
-### Utilities
-- `table.destroy()` - Clean up and remove event listeners
-- `table.refresh()` - Refresh table display
-
-## Events
-
-TableCrafter triggers custom events that you can listen to:
-
-```javascript
-const table = new TableCrafter('#my-table', config);
-
-// Listen for cell edits
-table.on('cellEdit', function(event) {
-    console.log('Cell edited:', event.detail);
-});
-
-// Listen for row selection
-table.on('rowSelect', function(event) {
-    console.log('Row selected:', event.detail);
-});
-
-// Listen for sort changes
-table.on('sort', function(event) {
-    console.log('Table sorted:', event.detail);
-});
+export function DataTable({ data, onEdit }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const table = new TableCrafter(ref.current, { data, onEdit, columns: [] });
+    table.render();
+    return () => table.destroy();
+  }, [data]);
+  return <div ref={ref} />;
+}
 ```
 
-## Styling
+### Vue 3
 
-TableCrafter uses CSS classes with the `tc-` prefix. You can customize the appearance by overriding these classes:
+```js
+import { onMounted, onBeforeUnmount, ref } from 'vue';
+import TableCrafter from 'tablecrafter';
 
-```css
-/* Main table wrapper */
-.tc-wrapper { }
-
-/* Table styles */
-.tc-table { }
-.tc-table th { }
-.tc-table td { }
-
-/* Mobile card view */
-.tc-cards-container { }
-.tc-card { }
-
-/* Filters */
-.tc-filters { }
-.tc-filter { }
-
-/* Pagination */
-.tc-pagination { }
-
-/* Edit mode */
-.tc-editable { }
-.tc-edit-input { }
-```
-
-## Browser Support
-
-- **Modern Browsers**: Chrome 60+, Firefox 55+, Safari 12+, Edge 79+
-- **Mobile**: iOS Safari 12+, Chrome Mobile 60+
-- **Legacy**: IE11+ (with polyfills for fetch API and CSS Grid)
-
-## Examples
-
-### Loading Data from URL
-```javascript
-const table = new TableCrafter('#table', {
-    data: '/api/users',  // URL endpoint
-    columns: [
-        { field: 'name', label: 'Name' },
-        { field: 'email', label: 'Email' }
-    ]
+const el = ref(null);
+let table;
+onMounted(() => {
+  table = new TableCrafter(el.value, { data: props.rows, columns: [] });
+  table.render();
 });
+onBeforeUnmount(() => table?.destroy());
 ```
 
-### Custom Edit Validation
-```javascript
-const table = new TableCrafter('#table', {
-    data: users,
-    columns: columns,
-    onEdit: function(change) {
-        if (change.field === 'email' && !change.newValue.includes('@')) {
-            alert('Invalid email address');
-            return false; // Reject the change
-        }
-        return true; // Accept the change
-    }
-});
+### Svelte
+
+```svelte
+<script>
+import TableCrafter from 'tablecrafter';
+import { onMount, onDestroy } from 'svelte';
+let el, table;
+onMount(() => { table = new TableCrafter(el, { data, columns }); table.render(); });
+onDestroy(() => table?.destroy());
+</script>
+<div bind:this={el}></div>
 ```
 
-## Development
+---
+
+## Export
+
+CSV and JSON export work out of the box:
+
+```js
+table.downloadCSV();           // triggers browser download
+const json = table.exportToJSON();
+```
+
+XLSX and PDF export require optional peer dependencies. See [issue #325](https://github.com/TableCrafter/tablecrafter.js/issues/325) for status and installation instructions.
+
+---
+
+## API methods (summary)
+
+| Method | Description |
+|---|---|
+| `render()` | Render or re-render the table |
+| `destroy()` | Tear down and remove listeners |
+| `setData(rows)` | Replace all data |
+| `getData()` | Current (unfiltered) data |
+| `getFilteredData()` | Data after search/filter applied |
+| `addRow(row)` | Append a row (fires `onCreate`) |
+| `updateRow(i, updates)` | Patch a row by index |
+| `removeRow(i)` | Delete a row by index |
+| `setFilter(field, value)` | Set a column filter |
+| `clearFilters()` | Reset all filters |
+| `sort(field, opts?)` | Sort by field |
+| `multiSort(keys)` | Sort by multiple fields |
+| `goToPage(n)` | Jump to page |
+| `exportToCSV()` | Return CSV string |
+| `exportToJSON()` | Return JSON string |
+| `downloadCSV()` | Trigger browser CSV download |
+| `setCurrentUser(user)` | Set user context for permissions |
+| `hasPermission(action, row?)` | Check permission |
+| `use(plugin, opts?)` | Register a plugin |
+| `setLocale(locale)` | Switch i18n locale |
+| `saveState()` | Persist current state |
+| `loadState()` | Restore persisted state |
+
+Callbacks configured in the constructor (`onEdit`, `onSort`, `onFilter`, `onDelete`, `onCreate`, `onPageChange`, `onRowSelect`, `onExport`) fire when the corresponding events occur.
+
+---
+
+## Testing
 
 ```bash
-# Install dependencies
-npm install
-
-# Run tests
-npm test
-
-# Run tests in watch mode
+npm test           # run Jest suite (808 tests)
 npm run test:watch
-
-# Run tests with coverage
 npm run test:coverage
-
-# Build for production
-npm run build
 ```
+
+---
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Add tests for new features
-4. Ensure all tests pass (`npm test`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+2. Create a feature branch: `git checkout -b feature/description`
+3. Add tests for new functionality
+4. Ensure all tests pass: `npm test`
+5. Open a pull request against `main`
 
-## WordPress Plugin Migration
-
-Migrating from WordPress Gravity Tables? TableCrafter.js covers many of the same capabilities. The current gap status is tracked in [docs/PARITY.md](docs/PARITY.md) -- check there before assuming full parity.
-
-| WordPress Feature | TableCrafter.js | Status |
-|-------------------|-----------------|---------|
-| Advanced Filtering | ✅ Auto-detection | Implemented |
-| Bulk Operations | ✅ Progress indicators | Implemented |
-| Mobile Cards | ✅ Expandable sections | Implemented |
-| Lookup Fields | ✅ API integration | Implemented |
-| Permissions | ✅ Role-based access | Implemented |
-| Inline Editing | ✅ Dropdown lookups | Implemented |
-
-📖 **[Migration Guide](https://tablecrafter.github.io/docs/guide/wordpress)**
-
-## Use Cases
-
-- **🏢 WordPress Plugin Replacement** - Replace Gravity Tables installations
-- **📊 Enterprise Dashboards** - Role-based data access with permissions  
-- **📋 SaaS Admin Interfaces** - Multi-tenant user management
-- **📱 Mobile-First Applications** - Touch-optimized data tables
-- **🔗 API-Driven Applications** - Dynamic lookup fields, real-time updates
-
-## Framework Integration
-
-- **[React](https://tablecrafter.github.io/docs/guide/react)** - React component wrapper
-- **[Vue.js](https://tablecrafter.github.io/docs/guide/vue)** - Vue component integration  
-- **[Angular](https://tablecrafter.github.io/docs/guide/angular)** - Angular component setup
-- **[WordPress](https://tablecrafter.github.io/docs/guide/wordpress)** - WordPress plugin integration
-
-## Community
-
-- **[📖 Documentation](https://tablecrafter.github.io/docs/)** - Complete guides and API reference
-- **[🎯 Examples](https://tablecrafter.github.io/docs/examples/basic)** - Live demos and code samples
-- **[🐛 Issues](https://github.com/TableCrafter/tablecrafter/issues)** - Bug reports and feature requests
-- **[💬 Discussions](https://github.com/TableCrafter/tablecrafter/discussions)** - Community support
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details.
+**Roadmap:** parity gaps and planned work are tracked in [Epic #323](https://github.com/TableCrafter/tablecrafter.js/issues/323) and the [parity matrix](docs/PARITY.md).
 
 ---
 
-**TableCrafter.js** - Advanced data table library tracking full TableCrafter plugin parity, zero dependencies, and mobile-first design.
+## License
+
+MIT -- see [LICENSE](LICENSE).

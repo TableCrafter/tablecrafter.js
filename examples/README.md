@@ -1,322 +1,147 @@
 # TableCrafter.js Examples
 
-This directory contains comprehensive examples demonstrating the features implemented in TableCrafter.js. For current parity status with the WordPress plugin, see [docs/PARITY.md](../docs/PARITY.md).
+Runnable HTML examples for TableCrafter.js. For the full feature list and current parity status with the TableCrafter WordPress plugin, see [docs/PARITY.md](../docs/PARITY.md).
 
-## 🚀 Quick Start
+## Running the examples
 
-1. **Advanced Features Demo** (`advanced-features.html`)
-   - Complete showcase of all new features
-   - Interactive demo with real functionality
-   - Feature comparison with WordPress plugin
-   - Live configuration examples
+Start any static server from the repo root:
 
-2. **API Integration Demo** (`api-integration.html`)
-   - REST API integration with mock server
-   - CRUD operations demonstration
-   - Authentication and error handling
-   - Real-time data updates
+```bash
+python -m http.server 8000
+```
 
-3. **WordPress Integration** (`wordpress-integration.js`)
-   - Complete WordPress plugin replacement
-   - Gravity Forms integration
-   - WordPress user/role system integration
-   - Shortcode support and admin integration
+Then open:
 
-## 📋 Feature Implementation Status
+- http://localhost:8000/examples/advanced-features.html
+- http://localhost:8000/examples/api-integration.html
+- http://localhost:8000/examples/validation-example.html
+- http://localhost:8000/examples/rich-cell-types-example.html
+- http://localhost:8000/examples/enhanced-form-integration-example.html
 
-### Implemented Features (partial parity -- see [docs/PARITY.md](../docs/PARITY.md) for full gap status)
+## Files
 
-| Feature | WordPress Plugin | TableCrafter.js | Status |
-|---------|------------------|-----------------|---------|
-| **Advanced Filtering** | ✅ Multi-select, date/number ranges | ✅ Auto-detection, all filter types | Implemented |
-| **Mobile Card Layout** | ✅ Expandable cards, field visibility | ✅ Responsive breakpoints, touch optimized | Implemented |
-| **Bulk Operations** | ✅ Select, delete, export, edit | ✅ Full bulk framework + custom actions | Implemented |
-| **Inline Editing** | ✅ Click to edit, validation | ✅ Enhanced with lookup dropdowns | Implemented |
-| **Add New Entries** | ✅ Modal creation, validation | ✅ Dynamic forms, validation engine | Implemented |
-| **Lookup Fields** | ✅ Users, posts, custom tables | ✅ API-driven, cached, filterable | Implemented |
-| **Permission System** | ✅ Role-based, field-level | ✅ Configurable, action-based | Implemented |
-| **State Persistence** | ✅ Server-side state | ✅ Client-side localStorage/session | Implemented |
-| **API Integration** | ✅ WordPress hooks/filters | ✅ RESTful APIs, authentication | Implemented |
+| File | Covers |
+|---|---|
+| `advanced-features.html` | Filtering, sorting, conditional formatting, cell renderers, bulk operations |
+| `api-integration.html` | REST API fetch, CRUD write-back, auth headers |
+| `validation-example.html` | 15+ validation rules, custom functions, error display |
+| `rich-cell-types-example.html` | All 14 editors, custom cell type registry, lookup dropdowns |
+| `enhanced-form-integration-example.html` | Add-row modal, state persistence, plugin system |
+| `wordpress-integration.js` | Pattern for replacing a WordPress Gravity Tables table |
 
-### 🔄 WordPress Integration Features
+## Basic usage
 
-- **Gravity Forms Integration**: Connect with existing form entries
-- **WordPress User System**: Role-based permissions, user lookups
-- **Media Library**: File upload integration
-- **Shortcode Support**: Easy embedding in posts/pages  
-- **Admin Interface**: Table builder and configuration
-- **Hooks & Filters**: Extensibility for other plugins
-
-## 🎯 Usage Examples
-
-### Basic Implementation
-
-```javascript
+```js
 const table = new TableCrafter('#my-table', {
-    data: myData,
-    columns: [
-        { field: 'id', label: 'ID' },
-        { field: 'name', label: 'Name', editable: true },
-        { field: 'email', label: 'Email', editable: true }
-    ],
-    editable: true,
-    pagination: true,
-    filterable: true
+  data: myData,
+  columns: [
+    { field: 'id',    label: 'ID' },
+    { field: 'name',  label: 'Name',  editable: true },
+    { field: 'email', label: 'Email', editable: true },
+  ],
+  editable:   true,
+  pagination: true,
+  filterable: true,
 });
-
 table.render();
 ```
 
-### Advanced Configuration
+## Advanced configuration
 
-```javascript
-const advancedTable = new TableCrafter('#advanced-table', {
-    // Auto-detect filter types from data
-    filters: {
-        advanced: true,
-        autoDetect: true,
-        showClearAll: true
+```js
+const table = new TableCrafter('#advanced-table', {
+  data: '/api/users',
+
+  filters: {
+    advanced:    true,
+    autoDetect:  true,
+    showClearAll: true,
+  },
+
+  bulk: {
+    enabled:    true,
+    operations: ['delete', 'export'],
+  },
+
+  responsive: {
+    fieldVisibility: {
+      mobile: { showFields: ['name', 'status'] },
+      tablet: { showFields: ['name', 'email', 'status'] },
     },
-    
-    // Bulk operations with custom actions
-    bulk: {
-        enabled: true,
-        operations: ['delete', 'export', 'custom-action']
-    },
-    
-    // Responsive design with field visibility
-    responsive: {
-        fieldVisibility: {
-            mobile: { showFields: ['name', 'status'] },
-            tablet: { showFields: ['name', 'email', 'status'] }
-        }
-    },
-    
-    // API integration
-    api: {
-        baseUrl: '/api/users',
-        authentication: { type: 'bearer', token: 'jwt-token' }
-    },
-    
-    // Permission system
-    permissions: {
-        enabled: true,
-        edit: ['admin', 'editor'],
-        delete: ['admin']
-    }
+  },
+
+  api: {
+    baseUrl:        '/api/users',
+    authentication: { type: 'bearer', token: 'jwt-token' },
+  },
+
+  permissions: {
+    enabled: true,
+    edit:    ['admin', 'editor'],
+    delete:  ['admin'],
+  },
+
+  onEdit({ field, value }) {
+    console.log(field, 'changed to', value);
+  },
 });
+table.render();
 ```
 
-### WordPress Integration
-
-```javascript
-// Replace existing Gravity Tables plugin
-const wpTable = new WordPressTableCrafter('#wp-table', tableId, {
-    gravityFormsIntegration: true,
-    userRoleFilter: 'driver',
-    ownOnly: true
-});
-
-wpTable.render();
-```
-
-### Lookup Fields
-
-```javascript
-const tableWithLookups = new TableCrafter('#lookup-table', {
-    columns: [
-        {
-            field: 'user_id',
-            label: 'Assigned User',
-            editable: true,
-            lookup: {
-                url: '/api/users',
-                valueField: 'id',
-                displayField: 'name',
-                filter: { role: 'driver' }
-            }
-        }
-    ]
-});
-```
-
-## 🛠️ Development Features
-
-### State Management
-
-- **Persistent Filters**: Automatically save and restore filter states
-- **Pagination Memory**: Remember current page across sessions
-- **Selection State**: Maintain bulk selections during navigation
-- **Sort Preferences**: Remember column sorting preferences
-
-### Performance Optimizations
-
-- **Lookup Caching**: Cache API responses for faster lookups
-- **Efficient Rendering**: Only re-render changed elements
-- **Virtual Scrolling**: Handle large datasets efficiently
-- **Lazy Loading**: Load data as needed
-
-### Error Handling
-
-- **API Resilience**: Graceful handling of network failures
-- **Validation Feedback**: Clear error messages for users
-- **Fallback Modes**: Offline functionality when possible
-- **Debug Mode**: Comprehensive logging for development
-
-## 🔧 Integration Guides
-
-### React Integration
+## React integration
 
 ```jsx
+import { useEffect, useRef } from 'react';
 import TableCrafter from 'tablecrafter';
 
-const ReactTable = ({ data, onEdit }) => {
-    const tableRef = useRef();
-    
-    useEffect(() => {
-        const table = new TableCrafter(tableRef.current, {
-            data,
-            onEdit
-        });
-        table.render();
-        
-        return () => table.destroy();
-    }, [data]);
-    
-    return <div ref={tableRef}></div>;
-};
+export function DataTable({ data, onEdit }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const table = new TableCrafter(ref.current, { data, onEdit, columns: [] });
+    table.render();
+    return () => table.destroy();
+  }, [data]);
+  return <div ref={ref} />;
+}
 ```
 
-### Vue.js Integration
+## Vue.js integration
 
 ```vue
 <template>
-    <div ref="tableContainer"></div>
+  <div ref="el"></div>
 </template>
 
 <script>
 import TableCrafter from 'tablecrafter';
-
 export default {
-    props: ['data'],
-    mounted() {
-        this.table = new TableCrafter(this.$refs.tableContainer, {
-            data: this.data
-        });
-        this.table.render();
-    },
-    beforeDestroy() {
-        this.table.destroy();
-    }
+  props: ['data'],
+  mounted() {
+    this.table = new TableCrafter(this.$refs.el, { data: this.data, columns: [] });
+    this.table.render();
+  },
+  beforeUnmount() {
+    this.table?.destroy();
+  },
 };
 </script>
 ```
 
-### Angular Integration
-
-```typescript
-import { Component, ElementRef, Input, OnInit, OnDestroy } from '@angular/core';
-import TableCrafter from 'tablecrafter';
-
-@Component({
-    selector: 'app-table',
-    template: '<div></div>'
-})
-export class TableComponent implements OnInit, OnDestroy {
-    @Input() data: any[];
-    private table: TableCrafter;
-    
-    constructor(private elementRef: ElementRef) {}
-    
-    ngOnInit() {
-        this.table = new TableCrafter(this.elementRef.nativeElement, {
-            data: this.data
-        });
-        this.table.render();
-    }
-    
-    ngOnDestroy() {
-        this.table.destroy();
-    }
-}
-```
-
-## 📖 API Documentation
-
-See the main documentation for complete API reference:
-- [Configuration Options](../docs/configuration.md)
-- [API Methods](../docs/api-methods.md)
-- [Event Callbacks](../docs/events.md)
-- [Styling Guide](../docs/styling.md)
-
-## 🎨 Customization
-
-### CSS Custom Properties
+## CSS custom properties
 
 ```css
 :root {
-    --tc-primary-color: #3498db;
-    --tc-border-color: #e1e5e9;
-    --tc-font-family: 'Inter', sans-serif;
-    --tc-border-radius: 8px;
+  --tc-primary-color: #3498db;
+  --tc-border-color:  #e1e5e9;
+  --tc-font-family:   'Inter', sans-serif;
+  --tc-border-radius: 8px;
 }
 ```
 
-### Custom Themes
+## Using WordPress? 
 
-```javascript
-const table = new TableCrafter('#table', {
-    theme: 'dark', // or 'light', 'custom'
-    customCSS: '/path/to/custom.css'
-});
-```
+The TableCrafter WordPress plugin provides server-side data sources, Gravity Forms write-back, and Gutenberg/Elementor blocks. `wordpress-integration.js` shows the browser-side pattern that works alongside it. See [docs/PARITY.md](../docs/PARITY.md) for what is and is not at parity with the plugin.
 
-## 🧪 Testing
+## License
 
-Run the examples:
-
-1. Start a local server:
-   ```bash
-   cd tablecrafter-js
-   python -m http.server 8000
-   ```
-
-2. Open examples:
-   - http://localhost:8000/examples/advanced-features.html
-   - http://localhost:8000/examples/api-integration.html
-
-## 🚀 Production Deployment
-
-### CDN Usage
-
-```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tablecrafter@latest/dist/tablecrafter.css">
-<script src="https://cdn.jsdelivr.net/npm/tablecrafter@latest/dist/tablecrafter.js"></script>
-```
-
-### NPM Installation
-
-```bash
-npm install tablecrafter
-```
-
-```javascript
-import TableCrafter from 'tablecrafter';
-import 'tablecrafter/dist/tablecrafter.css';
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
-5. Open Pull Request
-
-## 📄 License
-
-MIT License - see LICENSE file for details.
-
----
-
-**TableCrafter.js** - A standalone data table library tracking full TableCrafter plugin parity, with mobile-first design and framework-agnostic architecture. See [docs/PARITY.md](../docs/PARITY.md) for the current gap status.
+MIT -- see [LICENSE](../LICENSE).
