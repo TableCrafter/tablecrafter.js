@@ -47,7 +47,7 @@ These are NOT parity gaps and will not get issues:
 | Data bars / gradient / bipolar | Pro | dataBar + colorScale | OK (sub-options partial) |
 | Star rating cell | Free | none | GAP-JS |
 | Sparkline cell | Pro (Data Bars sub-option) | SOLID standalone | GAP-WP (standalone cell type) |
-| Formula columns | service exists but UNWIRED (orphan) | SOLID (arithmetic + function library) | GAP-WP (wire orphan; verify first) |
+| Formula columns | wired: save in class-tc-admin.php:1374, augment in class-tc-ajax.php:2479, builder UI in table-builder.php:2000 | SOLID (arithmetic + function library) | GAP-WP (function library breadth; verify per issue) |
 | Totals/aggregation row | Free (incl. count-distinct) | SOLID except `distinct` unimplemented | GAP-JS (distinct) |
 | Detail row / entry popup | Free (eye icon) | mobile card expand only | GAP-JS |
 | Row link click-through | Free (URL template) | link cell type only, not row-level | GAP-JS |
