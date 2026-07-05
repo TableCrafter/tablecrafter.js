@@ -1,6 +1,5 @@
 /**
  * TableCrafter - A lightweight, mobile-responsive data table library
- * @version 1.4.3
  * @author Fahad Murtaza
  * @license MIT
  */

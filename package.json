@@ -1,7 +1,7 @@
 {
   "name": "tablecrafter",
   "version": "2.0.0",
-  "description": "A lightweight, mobile-responsive data table library with inline editing, filtering, and WordPress parity features",
+  "description": "Zero-dependency JavaScript data table with inline editing, advanced filtering, and mobile card view. Companion library to the TableCrafter WordPress plugin.",
   "main": "dist/tablecrafter.cjs.js",
   "module": "dist/tablecrafter.esm.mjs",
   "unpkg": "dist/tablecrafter.umd.min.js",
@@ -30,15 +30,16 @@
     "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
-    "table",
     "data-table",
-    "editable",
-    "responsive",
-    "mobile",
-    "javascript",
+    "table",
+    "vanilla-js",
+    "zero-dependency",
+    "inline-editing",
     "filtering",
     "sorting",
-    "pagination"
+    "csv",
+    "datatable",
+    "editable-table"
   ],
   "author": "Fahad Murtaza",
   "license": "MIT",
