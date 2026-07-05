@@ -383,6 +383,12 @@ class TableCrafter {
    * Load data from URL
    */
   async loadData() {
+    // Plugin lifecycle: beforeLoad. Cancel-on-false aborts before any fetch
+    // is issued and before the loading skeleton is shown.
+    if (this._fireHook && this._fireHook('beforeLoad', { source: this.dataUrl }) === false) {
+      return this.data;
+    }
+
     // Cancel any in-flight request before starting a new one
     if (this._loadController) {
       this._loadController.abort();
@@ -421,6 +427,7 @@ class TableCrafter {
            this.detectFilterTypes();
            this.container.dataset.ssr = "false";
            this.render();
+           if (this._fireHook) this._fireHook('afterLoad', { data: this.data });
          } catch (e) {
            if (e && e.name === 'AbortError') {
              // Superseded by a newer loadData() — leave SSR content alone.
@@ -445,6 +452,7 @@ class TableCrafter {
 
       this.autoDiscoverColumns();
       this.render();
+      if (this._fireHook) this._fireHook('afterLoad', { data: this.data });
     } catch (error) {
       if (error && error.name === 'AbortError') {
         // Cancelled by a newer loadData() call — benign, do not surface.
@@ -659,6 +667,11 @@ class TableCrafter {
   }
 
   render() {
+    // Plugin lifecycle: beforeRender. Cancel-on-false skips the entire render.
+    if (this._fireHook && this._fireHook('beforeRender', { table: this }) === false) {
+      return;
+    }
+
     const _renderStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     // Check if we are hydrating (SSR content already present)
     const isHydrating = this.container.dataset.ssr === "true" &&
@@ -756,6 +769,9 @@ class TableCrafter {
 
     const _renderEnd = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     this._lastRenderMs = _renderEnd - _renderStart;
+
+    // Plugin lifecycle: afterRender. Return value is ignored.
+    if (this._fireHook) this._fireHook('afterRender', { table: this });
   }
 
   /**
@@ -1328,6 +1344,11 @@ class TableCrafter {
       }
     }
 
+    // Plugin lifecycle: beforeEdit. A handler returning false cancels.
+    if (this._fireHook && this._fireHook('beforeEdit', { rowIndex, field, value: newValue }) === false) {
+      return;
+    }
+
     // Update data
     this.data[rowIndex][field] = newValue;
 
@@ -1355,6 +1376,11 @@ class TableCrafter {
       this.config.onEdit(_editPayload);
     }
     this._emit('cellEdit', _editPayload);
+
+    // Plugin lifecycle: afterEdit. Return value is ignored.
+    if (this._fireHook) {
+      this._fireHook('afterEdit', { rowIndex, field, oldValue, newValue });
+    }
 
     // Update display with formatted value
     const parent = element.parentElement;
@@ -2320,6 +2346,12 @@ class TableCrafter {
     const append = options.append === true;
     const explicitDirection = options.direction;
 
+    // Plugin lifecycle: beforeSort. Cancel-on-false aborts the sort entirely
+    // — sortKeys are not mutated, data order is preserved, and afterSort does not fire.
+    if (this._fireHook && this._fireHook('beforeSort', { field, options }) === false) {
+      return;
+    }
+
     if (append) {
       const existing = this.sortKeys.find(k => k.field === field);
       if (existing) {
@@ -2404,6 +2436,11 @@ class TableCrafter {
     this.saveState();
     this.render();
     this._emit('sort', { sortKeys: [...this.sortKeys] });
+
+    // Plugin lifecycle: afterSort. Return value is ignored.
+    if (this._fireHook) {
+      this._fireHook('afterSort', { field: this.sortField, order: this.sortOrder });
+    }
   }
 
   /**
@@ -4675,6 +4712,30 @@ class TableCrafter {
 
   getVisibleColumns() {
     return (this.config.columns || []).filter(col => col.hidden !== true).slice();
+  }
+
+  /**
+   * Fire a named lifecycle hook across all registered plugins, in registration
+   * order. Returns false if any handler returned false or threw — callers in
+   * `before*` paths use that as the cancel signal. `after*` callers may ignore
+   * the return value. Errors are caught and warned so a single bad plugin
+   * cannot break the table.
+   */
+  _fireHook(name, payload) {
+    let proceed = true;
+    if (!Array.isArray(this._plugins)) return proceed;
+    for (const record of this._plugins) {
+      const fn = record.plugin && record.plugin.hooks && record.plugin.hooks[name];
+      if (typeof fn !== 'function') continue;
+      try {
+        const result = fn.call(record.plugin, payload, this);
+        if (result === false) proceed = false;
+      } catch (e) {
+        console.warn(`TableCrafter: plugin "${record.plugin.name}" threw in hook "${name}":`, e);
+        proceed = false;
+      }
+    }
+    return proceed;
   }
 
   /**
