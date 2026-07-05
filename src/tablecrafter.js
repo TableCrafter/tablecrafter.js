@@ -169,6 +169,7 @@ class TableCrafter {
     this.cellTypeRegistry = new Map(); // Rich cell type handlers
     this.activeEditors = new Map(); // Track active rich editors
     this._plugins = []; // Plugin registry — populated via use() / config.plugins
+    this._listeners = new Map(); // Event listener map for on/off/once API (#324)
 
     // Auto-register plugins declared in config.plugins (in order, before any
     // render). Each entry is either a plugin object or [plugin, options].
@@ -568,12 +569,14 @@ class TableCrafter {
     this.updateBulkControls();
 
     // Call callback if provided
+    const _selectionPayload = {
+      selectedRows: Array.from(this.selectedRows),
+      totalSelected: this.selectedRows.size
+    };
     if (this.config.onSelectionChange) {
-      this.config.onSelectionChange({
-        selectedRows: Array.from(this.selectedRows),
-        totalSelected: this.selectedRows.size
-      });
+      this.config.onSelectionChange(_selectionPayload);
     }
+    this._emit('selectionChange', _selectionPayload);
   }
 
   /**
@@ -1342,14 +1345,16 @@ class TableCrafter {
     }
 
     // Call onEdit callback if provided
+    const _editPayload = {
+      row: rowIndex,
+      field: field,
+      oldValue: oldValue,
+      newValue: newValue
+    };
     if (this.config.onEdit) {
-      this.config.onEdit({
-        row: rowIndex,
-        field: field,
-        oldValue: oldValue,
-        newValue: newValue
-      });
+      this.config.onEdit(_editPayload);
     }
+    this._emit('cellEdit', _editPayload);
 
     // Update display with formatted value
     const parent = element.parentElement;
@@ -1495,6 +1500,7 @@ class TableCrafter {
       this.currentPage = page;
       this.saveState();
       this.render();
+      this._emit('pageChange', { page: this.currentPage });
     }
   }
 
@@ -1977,13 +1983,14 @@ class TableCrafter {
     this.saveState();
 
     // Call onFilter callback if provided
+    const _filterPayload = {
+      filters: { ...this.filters },
+      filteredData: this.getFilteredData()
+    };
     if (this.config.onFilter) {
-      const filteredData = this.getFilteredData();
-      this.config.onFilter({
-        filters: { ...this.filters },
-        filteredData: filteredData
-      });
+      this.config.onFilter(_filterPayload);
     }
+    this._emit('filter', _filterPayload);
 
     this.render();
   }
@@ -2396,6 +2403,7 @@ class TableCrafter {
     this.currentPage = 1;
     this.saveState();
     this.render();
+    this._emit('sort', { sortKeys: [...this.sortKeys] });
   }
 
   /**
@@ -2881,9 +2889,11 @@ class TableCrafter {
 
     this.render();
 
+    const _addPayload = { row, index };
     if (typeof this.config.onAdd === 'function') {
-      this.config.onAdd({ row, index });
+      this.config.onAdd(_addPayload);
     }
+    this._emit('rowAdd', _addPayload);
     return row;
   }
 
@@ -2910,9 +2920,11 @@ class TableCrafter {
 
     this.render();
 
+    const _updatePayload = { row, index, previous };
     if (typeof this.config.onUpdate === 'function') {
-      this.config.onUpdate({ row, index, previous });
+      this.config.onUpdate(_updatePayload);
     }
+    this._emit('rowUpdate', _updatePayload);
     return row;
   }
 
@@ -2947,9 +2959,11 @@ class TableCrafter {
 
     this.render();
 
+    const _deletePayload = { row, index };
     if (typeof this.config.onDelete === 'function') {
-      this.config.onDelete({ row, index });
+      this.config.onDelete(_deletePayload);
     }
+    this._emit('rowDelete', _deletePayload);
     return true;
   }
 
@@ -5578,6 +5592,68 @@ class TableCrafter {
   /**
    * Destroy the table instance
    */
+  // ── Events API (#324) ────────────────────────────────────────────────────────
+
+  /**
+   * Register an event listener. Returns an unsubscribe function.
+   * @param {string} event
+   * @param {Function} handler
+   * @returns {Function} unsubscribe
+   */
+  on(event, handler) {
+    if (!this._listeners.has(event)) {
+      this._listeners.set(event, []);
+    }
+    this._listeners.get(event).push(handler);
+    return () => this.off(event, handler);
+  }
+
+  /**
+   * Remove a previously registered listener. No-op if not found.
+   * @param {string} event
+   * @param {Function} handler
+   */
+  off(event, handler) {
+    if (!this._listeners.has(event)) return;
+    const handlers = this._listeners.get(event);
+    const idx = handlers.indexOf(handler);
+    if (idx !== -1) handlers.splice(idx, 1);
+  }
+
+  /**
+   * Register a listener that fires once then removes itself.
+   * @param {string} event
+   * @param {Function} handler
+   * @returns {Function} unsubscribe (call before first emit to cancel)
+   */
+  once(event, handler) {
+    const wrapper = (payload) => {
+      this.off(event, wrapper);
+      handler(payload);
+    };
+    return this.on(event, wrapper);
+  }
+
+  /**
+   * Internal: emit an event to all registered listeners.
+   * Each handler is called in isolation; exceptions are logged but do not
+   * propagate or interrupt other handlers.
+   * @param {string} event
+   * @param {object} payload
+   */
+  _emit(event, payload) {
+    if (!this._listeners.has(event)) return;
+    // Shallow-copy to allow off() during iteration.
+    const handlers = [...this._listeners.get(event)];
+    for (const handler of handlers) {
+      try {
+        handler(payload);
+      } catch (err) {
+        console.error(`TableCrafter: uncaught error in "${event}" handler`, err);
+      }
+    }
+  }
+
   destroy() {
     // Save final state
     this.saveState();

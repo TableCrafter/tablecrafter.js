@@ -284,6 +284,71 @@ export interface TableCrafterConfig {
   [key: string]: unknown;
 }
 
+// ── Events API (#324) ────────────────────────────────────────────────────────
+
+export type TableCrafterEventName =
+  | 'cellEdit'
+  | 'rowAdd'
+  | 'rowUpdate'
+  | 'rowDelete'
+  | 'sort'
+  | 'filter'
+  | 'pageChange'
+  | 'selectionChange'
+  | (string & {});
+
+export interface CellEditPayload {
+  row: number;
+  field: string;
+  oldValue: unknown;
+  newValue: unknown;
+}
+
+export interface RowAddPayload {
+  row: Record<string, unknown>;
+  index: number;
+}
+
+export interface RowUpdatePayload {
+  row: Record<string, unknown>;
+  index: number;
+  previous: Record<string, unknown>;
+}
+
+export interface RowDeletePayload {
+  row: Record<string, unknown>;
+  index: number;
+}
+
+export interface SortPayload {
+  sortKeys: SortKey[];
+}
+
+export interface FilterPayload {
+  filters: Record<string, unknown>;
+  filteredData: Record<string, unknown>[];
+}
+
+export interface PageChangePayload {
+  page: number;
+}
+
+export interface SelectionChangePayload {
+  selectedRows: number[];
+  totalSelected: number;
+}
+
+export type TableCrafterEventPayload<E extends TableCrafterEventName> =
+  E extends 'cellEdit'        ? CellEditPayload :
+  E extends 'rowAdd'          ? RowAddPayload :
+  E extends 'rowUpdate'       ? RowUpdatePayload :
+  E extends 'rowDelete'       ? RowDeletePayload :
+  E extends 'sort'            ? SortPayload :
+  E extends 'filter'          ? FilterPayload :
+  E extends 'pageChange'      ? PageChangePayload :
+  E extends 'selectionChange' ? SelectionChangePayload :
+  Record<string, unknown>;
+
 // ── Validation errors ────────────────────────────────────────────────────────
 
 export interface ValidationError {
@@ -433,6 +498,20 @@ export declare class TableCrafter {
   saveState(): void;
   loadState(): void;
   clearState(): void;
+
+  // Events API (#324)
+  on<E extends TableCrafterEventName>(
+    event: E,
+    handler: (payload: TableCrafterEventPayload<E>) => void
+  ): () => void;
+  off<E extends TableCrafterEventName>(
+    event: E,
+    handler: (payload: TableCrafterEventPayload<E>) => void
+  ): void;
+  once<E extends TableCrafterEventName>(
+    event: E,
+    handler: (payload: TableCrafterEventPayload<E>) => void
+  ): () => void;
 
   // Plugins
   use(plugin: TableCrafterPlugin, options?: Record<string, unknown>): this;
