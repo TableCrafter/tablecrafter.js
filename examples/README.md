@@ -1,6 +1,6 @@
 # TableCrafter.js Examples
 
-This directory contains comprehensive examples demonstrating all advanced features implemented in TableCrafter.js, translated from the WordPress Gravity Tables plugin.
+This directory contains comprehensive examples demonstrating the features implemented in TableCrafter.js. For current parity status with the WordPress plugin, see [docs/PARITY.md](../docs/PARITY.md).
 
 ## 🚀 Quick Start
 
@@ -24,19 +24,19 @@ This directory contains comprehensive examples demonstrating all advanced featur
 
 ## 📋 Feature Implementation Status
 
-### ✅ Completed Features
+### Implemented Features (partial parity -- see [docs/PARITY.md](../docs/PARITY.md) for full gap status)
 
 | Feature | WordPress Plugin | TableCrafter.js | Status |
 |---------|------------------|-----------------|---------|
-| **Advanced Filtering** | ✅ Multi-select, date/number ranges | ✅ Auto-detection, all filter types | ✅ **100% Complete** |
-| **Mobile Card Layout** | ✅ Expandable cards, field visibility | ✅ Responsive breakpoints, touch optimized | ✅ **100% Complete** |
-| **Bulk Operations** | ✅ Select, delete, export, edit | ✅ Full bulk framework + custom actions | ✅ **100% Complete** |
-| **Inline Editing** | ✅ Click to edit, validation | ✅ Enhanced with lookup dropdowns | ✅ **100% Complete** |
-| **Add New Entries** | ✅ Modal creation, validation | ✅ Dynamic forms, validation engine | ✅ **100% Complete** |
-| **Lookup Fields** | ✅ Users, posts, custom tables | ✅ API-driven, cached, filterable | ✅ **100% Complete** |
-| **Permission System** | ✅ Role-based, field-level | ✅ Configurable, action-based | ✅ **100% Complete** |
-| **State Persistence** | ✅ Server-side state | ✅ Client-side localStorage/session | ✅ **100% Complete** |
-| **API Integration** | ✅ WordPress hooks/filters | ✅ RESTful APIs, authentication | ✅ **100% Complete** |
+| **Advanced Filtering** | ✅ Multi-select, date/number ranges | ✅ Auto-detection, all filter types | Implemented |
+| **Mobile Card Layout** | ✅ Expandable cards, field visibility | ✅ Responsive breakpoints, touch optimized | Implemented |
+| **Bulk Operations** | ✅ Select, delete, export, edit | ✅ Full bulk framework + custom actions | Implemented |
+| **Inline Editing** | ✅ Click to edit, validation | ✅ Enhanced with lookup dropdowns | Implemented |
+| **Add New Entries** | ✅ Modal creation, validation | ✅ Dynamic forms, validation engine | Implemented |
+| **Lookup Fields** | ✅ Users, posts, custom tables | ✅ API-driven, cached, filterable | Implemented |
+| **Permission System** | ✅ Role-based, field-level | ✅ Configurable, action-based | Implemented |
+| **State Persistence** | ✅ Server-side state | ✅ Client-side localStorage/session | Implemented |
+| **API Integration** | ✅ WordPress hooks/filters | ✅ RESTful APIs, authentication | Implemented |
 
 ### 🔄 WordPress Integration Features
 
@@ -319,4 +319,4 @@ MIT License - see LICENSE file for details.
 
 ---
 
-**TableCrafter.js** - A complete WordPress Gravity Tables plugin replacement with advanced features, mobile-first design, and framework-agnostic architecture.
+**TableCrafter.js** - A standalone data table library tracking full TableCrafter plugin parity, with mobile-first design and framework-agnostic architecture. See [docs/PARITY.md](../docs/PARITY.md) for the current gap status.

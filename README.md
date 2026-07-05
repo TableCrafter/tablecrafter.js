@@ -1,8 +1,8 @@
 # TableCrafter.js
 
-Advanced data table library with **complete WordPress plugin parity** - zero dependencies, mobile-first, API-ready.
+Advanced data table library tracking full TableCrafter plugin parity (see [docs/PARITY.md](docs/PARITY.md)) - zero dependencies, mobile-first, API-ready.
 
-> **WordPress Plugin Replacement**: Drop-in replacement for WordPress Gravity Tables with 100% feature parity plus modern enhancements.
+> **WordPress Plugin Migration**: A capable standalone replacement for WordPress Gravity Tables, tracking full feature parity with the TableCrafter plugin. See [docs/PARITY.md](docs/PARITY.md) for the current gap status.
 
 📖 **[Complete Documentation](https://tablecrafter.github.io/docs/)** | 🎯 **[Live Examples](https://tablecrafter.github.io/docs/examples/basic)** | 🔗 **[API Reference](https://tablecrafter.github.io/docs/api/tablecrafter)**
 
@@ -295,16 +295,16 @@ npm run build
 
 ## WordPress Plugin Migration
 
-Migrating from WordPress Gravity Tables? TableCrafter provides 100% feature parity:
+Migrating from WordPress Gravity Tables? TableCrafter.js covers many of the same capabilities. The current gap status is tracked in [docs/PARITY.md](docs/PARITY.md) -- check there before assuming full parity.
 
 | WordPress Feature | TableCrafter.js | Status |
 |-------------------|-----------------|---------|
-| Advanced Filtering | ✅ Auto-detection | Enhanced |
-| Bulk Operations | ✅ Progress indicators | Enhanced |
-| Mobile Cards | ✅ Expandable sections | Enhanced |
-| Lookup Fields | ✅ API integration | Enhanced |
-| Permissions | ✅ Role-based access | Enhanced |
-| Inline Editing | ✅ Dropdown lookups | Enhanced |
+| Advanced Filtering | ✅ Auto-detection | Implemented |
+| Bulk Operations | ✅ Progress indicators | Implemented |
+| Mobile Cards | ✅ Expandable sections | Implemented |
+| Lookup Fields | ✅ API integration | Implemented |
+| Permissions | ✅ Role-based access | Implemented |
+| Inline Editing | ✅ Dropdown lookups | Implemented |
 
 📖 **[Migration Guide](https://tablecrafter.github.io/docs/guide/wordpress)**
 
@@ -336,4 +336,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**TableCrafter.js** - Advanced data table library with complete WordPress plugin parity, zero dependencies, and mobile-first design.
+**TableCrafter.js** - Advanced data table library tracking full TableCrafter plugin parity, zero dependencies, and mobile-first design.
