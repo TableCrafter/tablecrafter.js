@@ -954,12 +954,18 @@ class TableCrafter {
              }
           }
           td.dataset.field = column.field;
-          this.applyConditionalFormatting(td, column.field, row[column.field], row);
 
           // Make cell editable if configured and user has permission
           if (this.config.editable && column.editable && this.hasPermission('edit', row)) {
             td.className = 'tc-editable';
             td.addEventListener('click', (e) => this.startEdit(e, actualRowIndex, column.field));
+          }
+
+          // Apply cell-scoped conditional formatting.
+          if (typeof this.getMatchingRules === 'function') {
+            const cellRules = this.getMatchingRules(column.field, row[column.field], row)
+              .filter(r => r.scope !== 'row');
+            this._applyConditionalFormatting(td, cellRules, row[column.field], column.field, row);
           }
 
           if (this._selection) {
@@ -3453,6 +3459,163 @@ class TableCrafter {
         td.setAttribute('aria-label', `${ariaField}: ${value}`);
       }
     }
+  }
+
+  /**
+   * Apply matching conditional-formatting rules to a target element. Iterates
+   * matches from low to high priority so higher priority style props overwrite
+   * lower; classNames are unioned. Caller controls scope by choosing which
+   * rules to pass in.
+   */
+  _applyConditionalFormatting(target, rules, value, field, row) {
+    if (!target || !Array.isArray(rules) || rules.length === 0) return;
+    // Reverse so iteration runs low → high priority and last write wins.
+    const ordered = rules.slice().reverse();
+    for (const rule of ordered) {
+      if (rule.className) {
+        const classes = Array.isArray(rule.className) ? rule.className : [rule.className];
+        for (const cls of classes) {
+          if (typeof cls === 'string' && cls) target.classList.add(cls);
+        }
+      }
+      if (rule.style) {
+        Object.assign(target.style, rule.style);
+      }
+    }
+
+    // Icon shorthand: pick the highest-priority rule with kind:'icon' + icon
+    // and prepend a single .tc-cf-icon span. Only one icon ever wins so the
+    // cell does not collect a stack of conflicting markers.
+    const iconRule = rules.find(r => r.kind === 'icon' && typeof r.icon === 'string' && r.icon);
+    if (iconRule && target.tagName === 'TD') {
+      const span = document.createElement('span');
+      span.className = 'tc-cf-icon';
+      span.textContent = iconRule.icon;
+      target.insertBefore(span, target.firstChild);
+    }
+
+    // colorScale shorthand: interpolate backgroundColor between min/[mid]/max
+    // colours based on the numeric value's position. Non-numeric values skip.
+    const scaleRule = rules.find(r => r.kind === 'colorScale');
+    if (scaleRule && target.tagName === 'TD') {
+      const num = (typeof value === 'number') ? value : Number(value);
+      if (!Number.isNaN(num)) {
+        const range = this._dataBarRange(scaleRule, field);
+        const colour = this._colorScaleAt(num, range.min, range.max, scaleRule);
+        if (colour) target.style.backgroundColor = colour;
+        this._applyConditionalAriaLabel(target, scaleRule, value, field, row);
+      }
+    }
+
+    // dataBar shorthand: pick the highest-priority rule with kind:'dataBar'
+    // and append a single .tc-cf-databar span whose width % is the value's
+    // position in [min, max]. Out-of-range values clamp to 0%/100%; zero
+    // range and non-numeric values skip the bar entirely.
+    const barRule = rules.find(r => r.kind === 'dataBar');
+    if (barRule && target.tagName === 'TD') {
+      const num = (typeof value === 'number') ? value : Number(value);
+      if (!Number.isNaN(num)) {
+        const range = this._dataBarRange(barRule, field);
+        const bar = document.createElement('div');
+        bar.className = 'tc-databar';
+        bar.style.cssText = `width:${this._dataBarPercent(num, range.min, range.max)}%;background:${barRule.color || '#4caf50'};height:4px;margin-top:2px;border-radius:2px`;
+        target.appendChild(bar);
+        this._applyConditionalAriaLabel(target, barRule, value, field, row);
+      }
+    }
+  }
+
+  _applyConditionalAriaLabel(target, rule, value, field, row) {
+    if (!target || target.tagName !== 'TD') return;
+    if (target.hasAttribute('aria-label')) return; // first-write wins
+    let label;
+    if (typeof rule.ariaLabel === 'function') {
+      try {
+        label = rule.ariaLabel(value, row);
+      } catch (e) {
+        label = null;
+      }
+    } else {
+      label = `${field}: ${value}`;
+    }
+    if (typeof label === 'string' && label) {
+      target.setAttribute('aria-label', label);
+    }
+  }
+
+  _dataBarRange(rule, field) {
+    if (typeof rule.min === 'number' && typeof rule.max === 'number') {
+      return { min: rule.min, max: rule.max };
+    }
+    let min = Infinity;
+    let max = -Infinity;
+    for (const row of this.data) {
+      const v = Number(row[field]);
+      if (!Number.isNaN(v)) {
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+    }
+    if (min === Infinity || max === -Infinity) return { min: 0, max: 0 };
+    return {
+      min: typeof rule.min === 'number' ? rule.min : min,
+      max: typeof rule.max === 'number' ? rule.max : max
+    };
+  }
+
+  _colorScaleAt(value, min, max, rule) {
+    const minColor = this._parseHexColor(rule.minColor);
+    const maxColor = this._parseHexColor(rule.maxColor);
+    if (!minColor || !maxColor) return null;
+
+    if (max <= min || value <= min) return this._formatRgb(minColor);
+    if (value >= max) return this._formatRgb(maxColor);
+
+    const midColor = rule.midColor ? this._parseHexColor(rule.midColor) : null;
+    const midPoint = (typeof rule.mid === 'number') ? rule.mid : (min + max) / 2;
+
+    if (midColor) {
+      if (value <= midPoint) {
+        const t = (value - min) / (midPoint - min);
+        return this._formatRgb(this._lerpColor(minColor, midColor, t));
+      }
+      const t = (value - midPoint) / (max - midPoint);
+      return this._formatRgb(this._lerpColor(midColor, maxColor, t));
+    }
+
+    const t = (value - min) / (max - min);
+    return this._formatRgb(this._lerpColor(minColor, maxColor, t));
+  }
+
+  _parseHexColor(hex) {
+    if (typeof hex !== 'string') return null;
+    let s = hex.trim().replace(/^#/, '');
+    if (s.length === 3) s = s.split('').map(c => c + c).join('');
+    if (s.length !== 6 || !/^[0-9a-f]{6}$/i.test(s)) return null;
+    return {
+      r: parseInt(s.slice(0, 2), 16),
+      g: parseInt(s.slice(2, 4), 16),
+      b: parseInt(s.slice(4, 6), 16)
+    };
+  }
+
+  _lerpColor(a, b, t) {
+    return {
+      r: Math.round(a.r + (b.r - a.r) * t),
+      g: Math.round(a.g + (b.g - a.g) * t),
+      b: Math.round(a.b + (b.b - a.b) * t)
+    };
+  }
+
+  _formatRgb({ r, g, b }) {
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  _dataBarPercent(value, min, max) {
+    if (max <= min) return 0;
+    if (value <= min) return 0;
+    if (value >= max) return 100;
+    return Math.round(((value - min) / (max - min)) * 100);
   }
 
   _cfColumnMin(field) {
