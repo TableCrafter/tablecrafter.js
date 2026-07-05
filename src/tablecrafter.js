@@ -2346,9 +2346,23 @@ class TableCrafter {
     const append = options.append === true;
     const explicitDirection = options.direction;
 
+    // Compute the direction that would result from this sort call (for hook payload).
+    let nextOrder;
+    if (explicitDirection) {
+      nextOrder = explicitDirection;
+    } else if (append) {
+      const existing = this.sortKeys.find(k => k.field === field);
+      nextOrder = existing ? (existing.direction === 'asc' ? 'desc' : 'asc') : 'asc';
+    } else {
+      const current = this.sortKeys[0];
+      nextOrder = (current && current.field === field && this.sortKeys.length === 1)
+        ? (current.direction === 'asc' ? 'desc' : 'asc')
+        : 'asc';
+    }
+
     // Plugin lifecycle: beforeSort. Cancel-on-false aborts the sort entirely
     // — sortKeys are not mutated, data order is preserved, and afterSort does not fire.
-    if (this._fireHook && this._fireHook('beforeSort', { field, options }) === false) {
+    if (this._fireHook && this._fireHook('beforeSort', { field, order: nextOrder }) === false) {
       return;
     }
 
@@ -5716,6 +5730,13 @@ class TableCrafter {
   }
 
   destroy() {
+    // Plugin lifecycle: destroy. Fired before any teardown so handlers can
+    // observe final state. Errors are isolated by _fireHook so a noisy plugin
+    // cannot stop the rest of the teardown from running.
+    if (this._fireHook) {
+      this._fireHook('destroy', { table: this });
+    }
+
     // Save final state
     this.saveState();
 
