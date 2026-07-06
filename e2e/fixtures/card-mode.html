@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TableCrafter Card Mode Fixture</title>
+  <link rel="stylesheet" href="/dist/v3/styles.css">
+  <script src="/dist/v3/tablecrafter.global.js"></script>
+</head>
+<body>
+  <div id="tc-mount"></div>
+  <script>
+    (function () {
+      var cities = ['New York', 'Chicago', 'Los Angeles'];
+      var data = [];
+      for (var i = 1; i <= 20; i++) {
+        data.push({
+          id: i,
+          name: 'Person ' + i,
+          city: cities[(i - 1) % cities.length],
+          age: 20 + (i % 40)
+        });
+      }
+
+      window.tablecrafter = new TableCrafter('#tc-mount', {
+        data: data,
+        columns: [
+          { key: 'id', label: 'ID', sortable: true },
+          { key: 'name', label: 'Name', sortable: true, editable: true },
+          { key: 'city', label: 'City', sortable: true },
+          { key: 'age', label: 'Age', type: 'number', sortable: true }
+        ],
+        view: 'auto'
+      });
+      window.tablecrafter.render();
+    })();
+  </script>
+</body>
+</html>

@@ -128,7 +128,7 @@
   "scripts": {
     "build": "rollup -c rollup.config.mjs && node scripts/copy-css.js",
     "build:watch": "rollup -c rollup.config.mjs --watch",
-    "build:v3": "vite build --config vite.v3.config.ts",
+    "build:v3": "vite build --config vite.v3.config.ts && node scripts/copy-v3-css.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -136,6 +136,7 @@
     "test:v3:watch": "vitest --config vitest.config.ts",
     "typecheck": "tsc --project tsconfig.v3.json",
     "size": "size-limit",
+    "e2e:v3": "playwright test",
     "prepublishOnly": "npm run build && npm run build:v3 && npm test"
   },
   "size-limit": [
@@ -217,6 +218,7 @@
     }
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@rollup/plugin-commonjs": "^29.0.2",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-terser": "^1.0.0",

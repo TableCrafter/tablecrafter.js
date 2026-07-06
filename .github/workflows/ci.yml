@@ -79,6 +79,37 @@ jobs:
           name: dist-v3
           path: dist/v3/
 
+  # v3 Playwright smoke tests (real-browser, chromium only)
+  playwright-smoke:
+    name: v3 Playwright smoke
+    needs: [build-v3]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Download v3 dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-v3
+          path: dist/v3/
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - run: npx playwright install chromium --with-deps
+
+      - run: npm run e2e:v3
+
   # v3 size-limit check (runs after build to have dist/v3/ artifacts)
   size-v3:
     name: v3 size-limit

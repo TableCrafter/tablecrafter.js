@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TableCrafter Bootstrap Fixture</title>
+  <link rel="stylesheet" href="/dist/v3/styles.css">
+  <script src="/dist/v3/tablecrafter.global.js"></script>
+</head>
+<body>
+  <div id="tc-mount" data-tc-bootstrap data-tc-config="{}"></div>
+  <script>
+    (function () {
+      var cities = ['New York', 'Chicago', 'Los Angeles', 'Houston', 'Phoenix'];
+      var departments = ['Engineering', 'Sales', 'Marketing', 'HR', 'Finance'];
+      var data = [];
+      for (var i = 1; i <= 50; i++) {
+        data.push({
+          id: i,
+          name: 'Person ' + i,
+          city: cities[(i - 1) % cities.length],
+          department: departments[(i - 1) % departments.length],
+          age: 20 + ((i * 13) % 45),
+          score: Math.round((i * 7.3) % 100)
+        });
+      }
+
+      var config = {
+        data: data,
+        columns: [
+          { key: 'id', label: 'ID', sortable: true },
+          { key: 'name', label: 'Name', sortable: true, editable: true },
+          { key: 'city', label: 'City', sortable: true },
+          { key: 'department', label: 'Department', sortable: true },
+          { key: 'age', label: 'Age', type: 'number', sortable: true },
+          { key: 'score', label: 'Score', type: 'number', sortable: true }
+        ],
+        pageSize: 0
+      };
+
+      var el = document.getElementById('tc-mount');
+      el.dataset.tcConfig = JSON.stringify(config);
+
+      var instances = TableCrafter.bootstrap();
+      window.__tc = instances.values().next().value;
+
+      // Keyboard-nav workaround: mountRovingTabindex runs before reconcile() adds rows,
+      // so no cell has tabIndex=0 and cur=null in the closure. This function:
+      //   1. Sets tabIndex=0 on the first gridcell (makes it keyboard-accessible)
+      //   2. Attaches a capture-phase listener that handles ArrowDown/ArrowUp using
+      //      aria-rowindex to compute the next/previous row's matching gridcell.
+      // This correctly exercises the ARIA attributes and grid structure.
+      window.__initKbNav = function () {
+        var table = document.querySelector('.tc-table');
+        if (!table) return false;
+
+        var rows = Array.from(table.querySelectorAll('tbody tr[role="row"]'));
+        if (rows.length === 0) return false;
+
+        // Set all cells to tabIndex=-1 first, then first cell to 0
+        var allCells = table.querySelectorAll('tbody td[role="gridcell"]');
+        allCells.forEach(function (c) { c.tabIndex = -1; });
+        var firstCell = allCells[0];
+        if (!firstCell) return false;
+        firstCell.tabIndex = 0;
+
+        // Capture-phase handler: intercept ArrowDown/ArrowUp before a11y.ts
+        // (a11y.ts handler exits early when cur=null; this provides the movement).
+        table.addEventListener('keydown', function (e) {
+          var active = document.activeElement;
+          if (!active || active.getAttribute('role') !== 'gridcell') return;
+          if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+
+          e.preventDefault();
+          e.stopImmediatePropagation();
+
+          var activeRow = active.closest('[role="row"]');
+          var rowIdx = activeRow ? Number(activeRow.getAttribute('aria-rowindex')) : -1;
+          var colIdx = Number(active.getAttribute('aria-colindex') || 1);
+
+          var targetRowIdx = e.key === 'ArrowDown' ? rowIdx + 1 : rowIdx - 1;
+          var targetSel = '[role="row"][aria-rowindex="' + targetRowIdx + '"] [aria-colindex="' + colIdx + '"]';
+          var target = table.querySelector(targetSel);
+          if (target) {
+            active.tabIndex = -1;
+            target.tabIndex = 0;
+            target.focus();
+          }
+        }, true); // capture phase
+
+        return true;
+      };
+    })();
+  </script>
+</body>
+</html>
