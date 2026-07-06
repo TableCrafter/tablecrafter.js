@@ -222,5 +222,10 @@
     "vite": "^5.4.21",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^2.1.9"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true,
+    "fsevents@2.3.3": true,
+    "unrs-resolver@1.11.1": true
   }
 }
