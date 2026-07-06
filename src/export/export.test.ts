@@ -35,7 +35,7 @@ function makeState(overrides?: Partial<TableState>): TableState {
     filteredRows: rows,
     sortedRows: rows,
     displayRows: rows,
-    sort: null,
+    sort: [],
     filters: {},
     searchQuery: '',
     searchAst: null,

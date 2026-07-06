@@ -26,6 +26,8 @@ import type {
   TableCrafterConfig,
   RowId,
   SortDirection,
+  SortOptions,
+  SortState,
   ColumnFilter,
   ExportFormat,
   ExportOptions,
@@ -83,9 +85,10 @@ describe('Store contract (frozen -- RFC amendment required to change)', () => {
   // Imperative helpers
   // ---------------------------------------------------------------------------
 
-  it('Store.sort(column, direction?)', () => {
+  it('Store.sort(column, direction?, opts?) -- RFC amendment: multi-key opts added', () => {
     expectTypeOf<Store['sort']>().parameter(0).toEqualTypeOf<string>();
     expectTypeOf<Store['sort']>().parameter(1).toEqualTypeOf<SortDirection | undefined>();
+    expectTypeOf<Store['sort']>().parameter(2).toEqualTypeOf<SortOptions | undefined>();
   });
 
   it('Store.setFilter(column, filter)', () => {
@@ -181,6 +184,10 @@ describe('Store contract (frozen -- RFC amendment required to change)', () => {
     expectTypeOf<TableState['pageCount']>().toEqualTypeOf<number>();
     expectTypeOf<TableState['totalRows']>().toEqualTypeOf<number>();
     expectTypeOf<TableState['loading']>().toEqualTypeOf<boolean>();
+  });
+
+  it('TableState.sort is SortState[] (RFC amendment: multi-key list replaces SortState | null)', () => {
+    expectTypeOf<TableState['sort']>().toEqualTypeOf<SortState[]>();
   });
 
   it('TableState.selection is Set<RowId>', () => {
