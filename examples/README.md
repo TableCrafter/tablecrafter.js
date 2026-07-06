@@ -14,6 +14,7 @@ Then open:
 
 - http://localhost:8000/examples/advanced-features.html
 - http://localhost:8000/examples/api-integration.html
+- http://localhost:8000/examples/events-and-hooks.html
 - http://localhost:8000/examples/validation-example.html
 - http://localhost:8000/examples/rich-cell-types-example.html
 - http://localhost:8000/examples/enhanced-form-integration-example.html
@@ -24,6 +25,7 @@ Then open:
 |---|---|
 | `advanced-features.html` | Filtering, sorting, conditional formatting, cell renderers, bulk operations |
 | `api-integration.html` | REST API fetch, CRUD write-back, auth headers |
+| `events-and-hooks.html` | on/off/once events API + lifecycle plugin hooks (beforeEdit/afterEdit, etc.) |
 | `validation-example.html` | 15+ validation rules, custom functions, error display |
 | `rich-cell-types-example.html` | All 14 editors, custom cell type registry, lookup dropdowns |
 | `enhanced-form-integration-example.html` | Add-row modal, state persistence, plugin system |

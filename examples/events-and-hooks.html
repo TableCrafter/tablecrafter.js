@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TableCrafter.js - Events and Plugin Hooks</title>
+    <link rel="stylesheet" href="../src/tablecrafter.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .demo-section {
+            margin-bottom: 40px;
+        }
+        .demo-section h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .config-example {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+        }
+        .event-log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 4px;
+            padding: 12px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 13px;
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 12px;
+        }
+        .event-log .log-entry {
+            padding: 2px 0;
+            border-bottom: 1px solid #333;
+        }
+        .event-log .log-entry:last-child {
+            border-bottom: none;
+        }
+        .event-log .event-name {
+            color: #4ec9b0;
+            font-weight: bold;
+        }
+        .event-log .event-payload {
+            color: #ce9178;
+        }
+        .event-log .hook-name {
+            color: #dcdcaa;
+            font-weight: bold;
+        }
+        .event-log .hook-blocked {
+            color: #f44747;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        .controls button {
+            padding: 8px 16px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .controls button:hover {
+            background: #2980b9;
+        }
+        .controls button.danger {
+            background: #e74c3c;
+        }
+        .controls button.danger:hover {
+            background: #c0392b;
+        }
+        .controls button.secondary {
+            background: #7f8c8d;
+        }
+        .controls button.secondary:hover {
+            background: #636e72;
+        }
+        #table-events,
+        #table-hooks {
+            margin-top: 16px;
+        }
+        .note {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 10px 14px;
+            font-size: 14px;
+            color: #856404;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>TableCrafter.js - Events and Plugin Hooks</h1>
+    <p class="subtitle">
+        Demonstrates the <code>on</code> / <code>off</code> / <code>once</code> events API
+        and lifecycle plugin hooks (<code>beforeEdit</code> / <code>afterEdit</code>,
+        <code>beforeSort</code> / <code>afterSort</code>, <code>beforeLoad</code> /
+        <code>afterLoad</code>, <code>destroy</code>).
+    </p>
+
+    <!-- ── Section 1: Events API ───────────────────────────────────────────── -->
+    <div class="demo-section">
+        <h2>1. Events API: on / off / once</h2>
+        <p>
+            <code>table.on(event, handler)</code> returns an unsubscribe function.
+            Use <code>table.once()</code> for a one-shot listener, and
+            <code>table.off(event, handler)</code> to remove by reference.
+            Eight named events are emitted: <strong>cellEdit</strong>,
+            <strong>selectionChange</strong>, <strong>sort</strong>,
+            <strong>filter</strong>, <strong>pageChange</strong>,
+            <strong>rowAdd</strong>, <strong>rowUpdate</strong>,
+            <strong>rowDelete</strong>.
+        </p>
+
+        <div class="note">
+            Try sorting, filtering, editing a cell, or clicking the buttons below.
+            The log shows every emitted event and its payload.
+        </div>
+
+        <div class="controls">
+            <button onclick="addRow()">Add row</button>
+            <button onclick="updateFirstRow()">Update row 0</button>
+            <button onclick="deleteFirstRow()" class="danger">Delete row 0</button>
+            <button onclick="clearLog('log-events')" class="secondary">Clear log</button>
+            <button onclick="toggleSortListener()" id="btn-toggle-sort" class="secondary">Pause sort listener</button>
+        </div>
+
+        <div id="table-events"></div>
+        <div class="event-log" id="log-events">
+            <div class="log-entry" style="color:#666;">-- events will appear here --</div>
+        </div>
+
+        <pre class="config-example">// All 8 events with their payload shapes:
+table.on('cellEdit',        ({ row, field, oldValue, newValue }) => { ... });
+table.on('selectionChange', ({ selectedRows })                  => { ... });
+table.on('sort',            ({ sortKeys })                      => { ... });
+table.on('filter',          ({ filters })                       => { ... });
+table.on('pageChange',      ({ page })                          => { ... });
+table.on('rowAdd',          ({ row, index })                    => { ... });
+table.on('rowUpdate',       ({ row, index, previous })          => { ... });
+table.on('rowDelete',       ({ row, index })                    => { ... });
+
+// Once fires exactly once then auto-removes:
+table.once('rowAdd', ({ row }) => console.log('first row ever added:', row));
+
+// on() returns an unsubscribe function:
+const unsub = table.on('sort', handler);
+unsub(); // stops the listener
+
+// off() removes by reference:
+table.off('sort', handler);</pre>
+    </div>
+
+    <!-- ── Section 2: Plugin Lifecycle Hooks ──────────────────────────────── -->
+    <div class="demo-section">
+        <h2>2. Plugin Lifecycle Hooks</h2>
+        <p>
+            Plugins declare a <code>hooks</code> object. Any <code>before*</code> hook that
+            returns <code>false</code> cancels the operation -- the corresponding
+            <code>after*</code> hook does not fire and the action is not applied.
+            Errors thrown inside hooks are caught and warned; later hooks still run.
+        </p>
+
+        <div class="note">
+            The <strong>guard plugin</strong> below blocks any edit to the
+            <em>Salary</em> column when the value is negative. Try editing that column
+            with a negative number to see the cancellation in the log.
+        </div>
+
+        <div class="controls">
+            <button onclick="clearLog('log-hooks')" class="secondary">Clear log</button>
+        </div>
+
+        <div id="table-hooks"></div>
+        <div class="event-log" id="log-hooks">
+            <div class="log-entry" style="color:#666;">-- hook calls will appear here --</div>
+        </div>
+
+        <pre class="config-example">// Plugin with lifecycle hooks:
+const auditPlugin = {
+  name: 'audit',
+  hooks: {
+    // beforeEdit: return false to cancel. Payload: { rowIndex, field, value }
+    beforeEdit({ rowIndex, field, value }, table) {
+      if (field === 'salary' &amp;&amp; value &lt; 0) {
+        console.warn('Negative salary blocked');
+        return false; // cancel the edit
+      }
+    },
+
+    // afterEdit fires only when the edit was committed
+    afterEdit({ rowIndex, field, oldValue, newValue }) {
+      console.log(`${field}: ${oldValue} -&gt; ${newValue}`);
+    },
+
+    beforeSort({ field, order }) { console.log('sorting', field, order); },
+    afterSort({ field, order })  { console.log('sorted',  field, order); },
+
+    beforeLoad({ source })  { console.log('loading from', source); },
+    afterLoad({ data })     { console.log('loaded', data.length, 'rows'); },
+
+    destroy() { console.log('table torn down'); },
+  },
+};</pre>
+    </div>
+</div>
+
+<script src="../src/tablecrafter.js"></script>
+<script>
+// ── Shared helpers ─────────────────────────────────────────────────────────
+
+function appendLog(logId, label, labelClass, text) {
+    const log = document.getElementById(logId);
+    // Remove the placeholder entry on first real entry
+    const placeholder = log.querySelector('[style*="color:#666"]');
+    if (placeholder) placeholder.remove();
+
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    const time = new Date().toLocaleTimeString();
+    entry.innerHTML =
+        `<span style="color:#569cd6">${time}</span> ` +
+        `<span class="${labelClass}">${label}</span> ` +
+        `<span class="event-payload">${escapeHtml(text)}</span>`;
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+}
+
+function logEvent(event, payload) {
+    appendLog('log-events', event, 'event-name', JSON.stringify(payload));
+}
+
+function logHook(hook, payload, blocked) {
+    const cls = blocked ? 'hook-blocked' : 'hook-name';
+    const label = blocked ? `${hook} [BLOCKED]` : hook;
+    appendLog('log-hooks', label, cls, JSON.stringify(payload));
+}
+
+function clearLog(id) {
+    document.getElementById(id).innerHTML =
+        '<div class="log-entry" style="color:#666;">-- cleared --</div>';
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+// ── Section 1: Events API ──────────────────────────────────────────────────
+
+const sampleData = [
+    { id: 1, name: 'Alice',   role: 'Engineer', salary: 95000 },
+    { id: 2, name: 'Bob',     role: 'Designer',  salary: 87000 },
+    { id: 3, name: 'Carol',   role: 'Manager',   salary: 110000 },
+    { id: 4, name: 'David',   role: 'Engineer',  salary: 92000 },
+    { id: 5, name: 'Eve',     role: 'Designer',  salary: 85000 },
+];
+
+const eventsTable = new TableCrafter('#table-events', {
+    data: JSON.parse(JSON.stringify(sampleData)), // deep copy
+    columns: [
+        { field: 'id',     label: 'ID',     sortable: true },
+        { field: 'name',   label: 'Name',   sortable: true, editable: true, filterable: true },
+        { field: 'role',   label: 'Role',   sortable: true, editable: true, filterable: true },
+        { field: 'salary', label: 'Salary', sortable: true, editable: true },
+    ],
+    editable: true,
+    sortable: true,
+    filterable: true,
+    pagination: true,
+    pageSize: 3,
+    bulk: { enabled: true, operations: ['delete', 'export'] },
+});
+
+// Subscribe to all 8 events
+eventsTable.on('cellEdit',        (p) => logEvent('cellEdit',        p));
+eventsTable.on('selectionChange', (p) => logEvent('selectionChange', { count: p.selectedRows.length }));
+eventsTable.on('filter',          (p) => logEvent('filter',          p));
+eventsTable.on('pageChange',      (p) => logEvent('pageChange',      p));
+eventsTable.on('rowAdd',          (p) => logEvent('rowAdd',          p));
+eventsTable.on('rowUpdate',       (p) => logEvent('rowUpdate',       { index: p.index, previous: p.previous }));
+eventsTable.on('rowDelete',       (p) => logEvent('rowDelete',       { index: p.index }));
+
+// Sort listener -- can be toggled off
+let sortUnsub = eventsTable.on('sort', (p) => logEvent('sort', p));
+let sortPaused = false;
+function toggleSortListener() {
+    if (!sortPaused) {
+        sortUnsub(); // stop listening
+        document.getElementById('btn-toggle-sort').textContent = 'Resume sort listener';
+    } else {
+        sortUnsub = eventsTable.on('sort', (p) => logEvent('sort', p));
+        document.getElementById('btn-toggle-sort').textContent = 'Pause sort listener';
+    }
+    sortPaused = !sortPaused;
+}
+
+// once() demo: fires exactly once
+eventsTable.once('rowAdd', (p) => logEvent('rowAdd (once -- fires once only)', p));
+
+eventsTable.render();
+
+let nextId = sampleData.length + 1;
+function addRow() {
+    eventsTable.addRow({ id: nextId++, name: 'New Person', role: 'Engineer', salary: 80000 });
+}
+function updateFirstRow() {
+    eventsTable.updateRow(0, { salary: 99999 });
+}
+function deleteFirstRow() {
+    eventsTable.removeRow(0);
+}
+
+// ── Section 2: Plugin Lifecycle Hooks ──────────────────────────────────────
+
+const guardPlugin = {
+    name: 'audit-guard',
+    hooks: {
+        beforeEdit({ rowIndex, field, value }, _table) {
+            const payload = { rowIndex, field, value };
+            if (field === 'salary' && Number(value) < 0) {
+                logHook('beforeEdit', payload, true);
+                return false; // cancel
+            }
+            logHook('beforeEdit', payload, false);
+        },
+        afterEdit({ rowIndex, field, oldValue, newValue }) {
+            logHook('afterEdit', { rowIndex, field, oldValue, newValue }, false);
+        },
+        beforeSort({ field, order }) {
+            logHook('beforeSort', { field, order }, false);
+        },
+        afterSort({ field, order }) {
+            logHook('afterSort', { field, order }, false);
+        },
+        destroy() {
+            logHook('destroy', {}, false);
+        },
+    },
+};
+
+const hooksTable = new TableCrafter('#table-hooks', {
+    data: JSON.parse(JSON.stringify(sampleData)),
+    columns: [
+        { field: 'id',     label: 'ID',     sortable: true },
+        { field: 'name',   label: 'Name',   sortable: true, editable: true },
+        { field: 'role',   label: 'Role',   sortable: true, editable: true },
+        { field: 'salary', label: 'Salary', sortable: true, editable: true },
+    ],
+    editable: true,
+    sortable: true,
+    plugins: [guardPlugin],
+});
+
+hooksTable.render();
+</script>
+</body>
+</html>
