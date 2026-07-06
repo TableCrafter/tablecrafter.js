@@ -352,7 +352,15 @@ table.downloadCSV();           // triggers browser download
 const json = table.exportToJSON();
 ```
 
-XLSX and PDF export require optional peer dependencies. See [issue #325](https://github.com/TableCrafter/tablecrafter.js/issues/325) for status and installation instructions.
+XLSX and PDF export require optional peer dependencies:
+
+```sh
+# XLSX (optional)
+npm install xlsx
+
+# PDF (optional)
+npm install jspdf jspdf-autotable
+```
 
 ---
 
