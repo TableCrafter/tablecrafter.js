@@ -311,3 +311,69 @@ export function nextCellPosition(
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// EditorRegistry (Issue #366)
+// ---------------------------------------------------------------------------
+
+/** Descriptor for a named inline cell editor. */
+export interface EditorDescriptor {
+  /** Human-readable name shown in UI affordances. */
+  label: string;
+  /** The CellType this editor handles, if it maps 1:1 to a type. */
+  cellType?: import('../core/types').CellType | undefined;
+  /** Whether the editor requires a list of options (select-like). */
+  hasOptions?: boolean | undefined;
+  /** Whether the editor is multi-value (multiselect-like). */
+  multiValue?: boolean | undefined;
+}
+
+/** Runtime registry mapping editor type names to their descriptors. */
+export interface EditorRegistry {
+  /**
+   * Register a named editor descriptor.
+   * Throws if name is already registered (duplicate guard).
+   */
+  register(name: string, descriptor: EditorDescriptor): void;
+  /** Return the descriptor for a named editor, or undefined if not registered. */
+  get(name: string): EditorDescriptor | undefined;
+  /** Return a sorted list of all registered editor names. */
+  keys(): string[];
+}
+
+/** Built-in editor names pre-registered in the default registry. */
+const BUILT_IN_EDITORS: Array<[string, EditorDescriptor]> = [
+  ['text',      { label: 'Text',      cellType: 'text' }],
+  ['number',    { label: 'Number',    cellType: 'number' }],
+  ['date',      { label: 'Date',      cellType: 'date' }],
+  ['checkbox',  { label: 'Checkbox',  cellType: 'checkbox' }],
+  ['boolean',   { label: 'Boolean',   cellType: 'boolean' }],
+  ['select',    { label: 'Select',    cellType: 'select',  hasOptions: true }],
+  ['star',      { label: 'Star',      cellType: 'star' }],
+];
+
+/**
+ * Create a new EditorRegistry pre-populated with the built-in editors.
+ * Each registry instance is independent; mutations do not affect others.
+ */
+export function createEditorRegistry(): EditorRegistry {
+  const map = new Map<string, EditorDescriptor>(BUILT_IN_EDITORS);
+
+  return {
+    register(name: string, descriptor: EditorDescriptor): void {
+      if (map.has(name)) {
+        throw new Error(`EditorRegistry: editor "${name}" is already registered`);
+      }
+      map.set(name, { ...descriptor });
+    },
+    get(name: string): EditorDescriptor | undefined {
+      return map.get(name);
+    },
+    keys(): string[] {
+      return Array.from(map.keys()).sort();
+    },
+  };
+}
+
+/** Default shared registry. */
+export const editorRegistry: EditorRegistry = createEditorRegistry();
