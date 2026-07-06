@@ -239,5 +239,13 @@
     "esbuild@0.21.5": true,
     "fsevents@2.3.3": true,
     "unrs-resolver@1.11.1": true
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TableCrafter/tablecrafter.js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/TableCrafter/tablecrafter.js/issues"
+  },
+  "homepage": "https://tablecrafter.com/tablecrafter-js.html"
 }
