@@ -884,7 +884,34 @@ class TableCrafter {
     // Render body
     const tbody = document.createElement('tbody');
 
-    const displayData = this.getPaginatedData();
+    // Virtual scroll and pagination are mutually exclusive: pagination wins.
+    const vsActive = Boolean(this._virtualScroll) && !this.config.pagination;
+    if (this._virtualScroll && this.config.pagination) {
+      console.warn('TableCrafter: virtualScroll is disabled when pagination is active; pagination takes precedence.');
+    }
+
+    let displayData;
+    let vsWindow = null;
+
+    if (vsActive) {
+      const filteredData = this.getFilteredData();
+      vsWindow = this.computeVirtualWindow({
+        scrollTop: 0,
+        viewportHeight: this._virtualScroll.viewportHeight,
+        rowHeight: this._virtualScroll.rowHeight,
+        totalRows: filteredData.length,
+        overscan: this._virtualScroll.overscan
+      });
+      displayData = filteredData.slice(vsWindow.startIndex, vsWindow.endIndex);
+
+      // Top spacer row
+      const topSpacer = document.createElement('tr');
+      topSpacer.className = 'tc-vs-top-spacer';
+      topSpacer.style.height = `${vsWindow.topPadding}px`;
+      tbody.appendChild(topSpacer);
+    } else {
+      displayData = this.getPaginatedData();
+    }
 
     if (displayData.length === 0) {
       // Show no results message
@@ -899,111 +926,150 @@ class TableCrafter {
       tbody.appendChild(tr);
     } else {
       displayData.forEach((row, rowIndex) => {
-        const actualRowIndex = this.config.pagination ?
-          (this.currentPage - 1) * this.config.pageSize + rowIndex :
-          rowIndex;
-        const tr = document.createElement('tr');
-        tr.dataset.rowIndex = actualRowIndex;
-
-        const columnPromises = this._orderedColumns().map(async (column) => {
-          const td = document.createElement('td');
-          if (column.pinned === 'left') td.classList.add('tc-pinned-left');
-          else if (column.pinned === 'right') td.classList.add('tc-pinned-right');
-
-          if (column.cellType === 'badge' || column.cellType === 'progress' || column.cellType === 'link') {
-            this._renderRichCell(td, column, row[column.field], row);
-            td.dataset.field = column.field;
-            this.applyConditionalFormatting(td, column.field, row[column.field], row);
-            tr.appendChild(td);
-            return;
-          }
-
-          if (column.cellType === 'sparkline') {
-            const svg = this.renderSparkline(row[column.field], column.sparkline);
-            if (svg) td.appendChild(svg);
-            td.dataset.field = column.field;
-            this.applyConditionalFormatting(td, column.field, row[column.field], row);
-            tr.appendChild(td);
-            return;
-          }
-
-          let displayValue;
-          if (column.formula) {
-            const computed = this.evaluateFormula(column.formula, row);
-            displayValue = computed === null ? '' : computed;
-          } else {
-            displayValue = row[column.field];
-          }
-
-          // Heatmap cell: same contract; intensity-coloured cell strip.
-          if (column.cellType === 'heatmap') {
-            const svg = this.renderHeatmap(row[column.field], column.heatmap);
-            if (svg) td.appendChild(svg);
-            td.dataset.field = column.field;
-            tr.appendChild(td);
-            return;
-          }
-
-          if (displayValue === null || displayValue === undefined) {
-             displayValue = '';
-          }
-
-          if (column.lookup && displayValue) {
-            displayValue = await this.formatLookupValue(column, displayValue);
-            td.textContent = displayValue;
-          } else {
-             // Auto-format value
-             const formatted = this.formatValue(displayValue, column.type);
-             
-             // Check if formatted result is HTML (simple check: contains tags)
-             if (typeof formatted === 'string' && /<[a-z][\s\S]*>/i.test(formatted)) {
-                td.innerHTML = formatted;
-             } else {
-                td.textContent = formatted;
-             }
-          }
-          td.dataset.field = column.field;
-
-          // Make cell editable if configured and user has permission
-          if (this.config.editable && column.editable && this.hasPermission('edit', row)) {
-            td.className = 'tc-editable';
-            td.addEventListener('click', (e) => this.startEdit(e, actualRowIndex, column.field));
-          }
-
-          // Apply cell-scoped conditional formatting.
-          if (typeof this.getMatchingRules === 'function') {
-            const cellRules = this.getMatchingRules(column.field, row[column.field], row)
-              .filter(r => r.scope !== 'row');
-            this._applyConditionalFormatting(td, cellRules, row[column.field], column.field, row);
-          }
-
-          if (this._selection) {
-            const sel = this._selection;
-            const allFields = (this.config.columns || []).map(c => c.field);
-            const startCol = allFields.indexOf(sel.startCol);
-            const endCol = allFields.indexOf(sel.endCol);
-            const colIdx = allFields.indexOf(column.field);
-            if (actualRowIndex >= sel.startRow && actualRowIndex <= sel.endRow
-                && colIdx >= startCol && colIdx <= endCol) {
-              td.classList.add('tc-selected');
-              if (actualRowIndex === sel.anchor.row && column.field === sel.anchor.field) {
-                td.classList.add('tc-selected-anchor');
-              }
-            }
-          }
-
-          tr.appendChild(td);
-        });
-
-        this._applyRowConditionalFormatting(tr, row);
+        const actualRowIndex = vsActive
+          ? vsWindow.startIndex + rowIndex
+          : (this.config.pagination
+              ? (this.currentPage - 1) * this.config.pageSize + rowIndex
+              : rowIndex);
+        const tr = this._buildDataRow(row, actualRowIndex);
         tbody.appendChild(tr);
       });
+    }
+
+    if (vsActive) {
+      // Bottom spacer row
+      const bottomSpacer = document.createElement('tr');
+      bottomSpacer.className = 'tc-vs-bottom-spacer';
+      bottomSpacer.style.height = `${vsWindow.bottomPadding}px`;
+      tbody.appendChild(bottomSpacer);
     }
 
     table.appendChild(tbody);
     tableContainer.appendChild(table);
 
+    if (vsActive) {
+      tableContainer.style.overflowY = 'auto';
+      tableContainer.style.height = `${this._virtualScroll.viewportHeight}px`;
+
+      // Teardown any previous listener before installing a fresh one.
+      this._teardownVirtualScroll();
+
+      this._vsContainer = tableContainer;
+      this._vsMode = 'table';
+
+      let _vsRaf = null;
+      this._vsScrollHandler = () => {
+        if (_vsRaf) return;
+        _vsRaf = requestAnimationFrame(() => {
+          _vsRaf = null;
+          this._patchVirtualRows();
+        });
+      };
+      tableContainer.addEventListener('scroll', this._vsScrollHandler, { passive: true });
+    }
+
     return tableContainer;
+  }
+
+  /**
+   * Build a single data row <tr> for use in both renderTable and _patchVirtualRows.
+   */
+  _buildDataRow(row, actualRowIndex) {
+    const tr = document.createElement('tr');
+    tr.dataset.rowIndex = actualRowIndex;
+
+    this._orderedColumns().map(async (column) => {
+      const td = document.createElement('td');
+      if (column.pinned === 'left') td.classList.add('tc-pinned-left');
+      else if (column.pinned === 'right') td.classList.add('tc-pinned-right');
+
+      if (column.cellType === 'badge' || column.cellType === 'progress' || column.cellType === 'link') {
+        this._renderRichCell(td, column, row[column.field], row);
+        td.dataset.field = column.field;
+        this.applyConditionalFormatting(td, column.field, row[column.field], row);
+        tr.appendChild(td);
+        return;
+      }
+
+      if (column.cellType === 'sparkline') {
+        const svg = this.renderSparkline(row[column.field], column.sparkline);
+        if (svg) td.appendChild(svg);
+        td.dataset.field = column.field;
+        this.applyConditionalFormatting(td, column.field, row[column.field], row);
+        tr.appendChild(td);
+        return;
+      }
+
+      let displayValue;
+      if (column.formula) {
+        const computed = this.evaluateFormula(column.formula, row);
+        displayValue = computed === null ? '' : computed;
+      } else {
+        displayValue = row[column.field];
+      }
+
+      // Heatmap cell: same contract; intensity-coloured cell strip.
+      if (column.cellType === 'heatmap') {
+        const svg = this.renderHeatmap(row[column.field], column.heatmap);
+        if (svg) td.appendChild(svg);
+        td.dataset.field = column.field;
+        tr.appendChild(td);
+        return;
+      }
+
+      if (displayValue === null || displayValue === undefined) {
+         displayValue = '';
+      }
+
+      if (column.lookup && displayValue) {
+        displayValue = await this.formatLookupValue(column, displayValue);
+        td.textContent = displayValue;
+      } else {
+         // Auto-format value
+         const formatted = this.formatValue(displayValue, column.type);
+
+         // Check if formatted result is HTML (simple check: contains tags)
+         if (typeof formatted === 'string' && /<[a-z][\s\S]*>/i.test(formatted)) {
+            td.innerHTML = formatted;
+         } else {
+            td.textContent = formatted;
+         }
+      }
+      td.dataset.field = column.field;
+
+      // Make cell editable if configured and user has permission
+      if (this.config.editable && column.editable && this.hasPermission('edit', row)) {
+        td.className = 'tc-editable';
+        td.addEventListener('click', (e) => this.startEdit(e, actualRowIndex, column.field));
+      }
+
+      // Apply cell-scoped conditional formatting.
+      if (typeof this.getMatchingRules === 'function') {
+        const cellRules = this.getMatchingRules(column.field, row[column.field], row)
+          .filter(r => r.scope !== 'row');
+        this._applyConditionalFormatting(td, cellRules, row[column.field], column.field, row);
+      }
+
+      if (this._selection) {
+        const sel = this._selection;
+        const allFields = (this.config.columns || []).map(c => c.field);
+        const startCol = allFields.indexOf(sel.startCol);
+        const endCol = allFields.indexOf(sel.endCol);
+        const colIdx = allFields.indexOf(column.field);
+        if (actualRowIndex >= sel.startRow && actualRowIndex <= sel.endRow
+            && colIdx >= startCol && colIdx <= endCol) {
+          td.classList.add('tc-selected');
+          if (actualRowIndex === sel.anchor.row && column.field === sel.anchor.field) {
+            td.classList.add('tc-selected-anchor');
+          }
+        }
+      }
+
+      tr.appendChild(td);
+    });
+
+    this._applyRowConditionalFormatting(tr, row);
+    return tr;
   }
 
   /**
@@ -1076,11 +1142,36 @@ class TableCrafter {
     cardsContainer.className = 'tc-cards-container';
     cardsContainer.setAttribute('role', 'list');
 
-    const displayData = this.getPaginatedData();
     const breakpoint = this.getCurrentBreakpoint();
     const visibleFields = this.getVisibleFields(breakpoint);
     const hiddenFields = this.getHiddenFields(breakpoint);
     const hasHiddenFields = hiddenFields.length > 0;
+
+    // Virtual scroll and pagination are mutually exclusive: pagination wins.
+    const vsActive = Boolean(this._virtualScroll) && !this.config.pagination;
+
+    let displayData;
+    let vsWindow = null;
+
+    if (vsActive) {
+      const filteredData = this.getFilteredData();
+      vsWindow = this.computeVirtualWindow({
+        scrollTop: 0,
+        viewportHeight: this._virtualScroll.viewportHeight,
+        rowHeight: this._virtualScroll.rowHeight,
+        totalRows: filteredData.length,
+        overscan: this._virtualScroll.overscan
+      });
+      displayData = filteredData.slice(vsWindow.startIndex, vsWindow.endIndex);
+
+      // Top spacer div
+      const topSpacer = document.createElement('div');
+      topSpacer.className = 'tc-vs-top-spacer-card';
+      topSpacer.style.height = `${vsWindow.topPadding}px`;
+      cardsContainer.appendChild(topSpacer);
+    } else {
+      displayData = this.getPaginatedData();
+    }
 
     if (displayData.length === 0) {
       // Show no results message
@@ -1092,151 +1183,188 @@ class TableCrafter {
       cardsContainer.appendChild(noResults);
     } else {
       displayData.forEach((row, rowIndex) => {
-        const actualRowIndex = this.config.pagination ?
-          (this.currentPage - 1) * this.config.pageSize + rowIndex :
-          rowIndex;
-        const card = document.createElement('div');
-        card.className = 'tc-card';
-        card.setAttribute('role', 'listitem');
-        if (hasHiddenFields) {
-          card.className += ' tc-card-expandable';
-        }
-        card.dataset.rowIndex = actualRowIndex;
-
-        // Bulk selection checkbox if enabled
-        if (this.config.bulk.enabled) {
-          const checkboxContainer = document.createElement('div');
-          checkboxContainer.className = 'tc-card-checkbox';
-
-          const checkbox = document.createElement('input');
-          checkbox.type = 'checkbox';
-          checkbox.className = 'tc-row-checkbox';
-          checkbox.dataset.rowIndex = actualRowIndex;
-          checkbox.checked = this.selectedRows.has(actualRowIndex);
-          checkbox.addEventListener('change', (e) => {
-            this.toggleRowSelection(actualRowIndex, e.target.checked);
-          });
-
-          checkboxContainer.appendChild(checkbox);
-          card.appendChild(checkboxContainer);
-        }
-
-        // Card header with expand toggle
-        const cardHeader = document.createElement('div');
-        cardHeader.className = 'tc-card-header';
-
-        // Use first column as title
-        const firstColumn = this.config.columns[0];
-        if (firstColumn) {
-          const title = document.createElement('span');
-          title.textContent = row[firstColumn.field] || `Item ${actualRowIndex + 1}`;
-          cardHeader.appendChild(title);
-        }
-
-        // Add expand toggle if there are hidden fields
-        if (hasHiddenFields) {
-          const toggle = document.createElement('span');
-          toggle.className = 'tc-card-toggle';
-          toggle.textContent = '▼';
-          cardHeader.appendChild(toggle);
-
-          cardHeader.addEventListener('click', () => {
-            this.toggleCard(card);
-          });
-          cardHeader.style.cursor = 'pointer';
-        }
-
-        card.appendChild(cardHeader);
-
-        // Card body with visible fields
-        const cardBody = document.createElement('div');
-        cardBody.className = 'tc-card-body';
-
-        visibleFields.forEach(column => {
-          if (column === firstColumn) return; // Skip first column as it's in header
-
-          const field = document.createElement('div');
-          field.className = 'tc-card-field';
-
-          const label = document.createElement('span');
-          label.className = 'tc-card-label';
-          label.textContent = column.label + ':';
-
-          const value = document.createElement('span');
-          value.className = 'tc-card-value';
-
-          // Format lookup values
-          let displayValue = row[column.field] || '';
-          if (column.lookup && displayValue) {
-            this.formatLookupValue(column, displayValue).then(formatted => {
-              value.textContent = formatted;
-            });
-          } else {
-            value.textContent = displayValue;
-          }
-
-          value.dataset.field = column.field;
-
-          // Make field editable if configured and user has permission
-          if (this.config.editable && column.editable && this.hasPermission('edit', row)) {
-            value.className += ' tc-editable';
-            value.addEventListener('click', (e) => this.startEdit(e, actualRowIndex, column.field));
-          }
-
-          field.appendChild(label);
-          field.appendChild(value);
-          cardBody.appendChild(field);
-        });
-
-        card.appendChild(cardBody);
-
-        // Hidden fields section (initially hidden)
-        if (hasHiddenFields) {
-          const hiddenSection = document.createElement('div');
-          hiddenSection.className = 'tc-card-hidden-fields';
-
-          hiddenFields.forEach(column => {
-            const field = document.createElement('div');
-            field.className = 'tc-card-field';
-
-            const label = document.createElement('span');
-            label.className = 'tc-card-label';
-            label.textContent = column.label + ':';
-
-            const value = document.createElement('span');
-            value.className = 'tc-card-value';
-
-            // Format lookup values
-            let displayValue = row[column.field] || '';
-            if (column.lookup && displayValue) {
-              this.formatLookupValue(column, displayValue).then(formatted => {
-                value.textContent = formatted;
-              });
-            } else {
-              value.textContent = displayValue;
-            }
-
-            value.dataset.field = column.field;
-
-            // Make field editable if configured and user has permission
-            if (this.config.editable && column.editable && this.hasPermission('edit', row)) {
-              value.className += ' tc-editable';
-              value.addEventListener('click', (e) => this.startEdit(e, actualRowIndex, column.field));
-            }
-
-            field.appendChild(label);
-            field.appendChild(value);
-            hiddenSection.appendChild(field);
-          });
-
-          card.appendChild(hiddenSection);
-        }
-
+        const actualRowIndex = vsActive
+          ? vsWindow.startIndex + rowIndex
+          : (this.config.pagination
+              ? (this.currentPage - 1) * this.config.pageSize + rowIndex
+              : rowIndex);
+        const card = this._buildCard(row, actualRowIndex, visibleFields, hiddenFields, hasHiddenFields);
         cardsContainer.appendChild(card);
       });
     }
 
+    if (vsActive) {
+      // Bottom spacer div
+      const bottomSpacer = document.createElement('div');
+      bottomSpacer.className = 'tc-vs-bottom-spacer-card';
+      bottomSpacer.style.height = `${vsWindow.bottomPadding}px`;
+      cardsContainer.appendChild(bottomSpacer);
+
+      cardsContainer.style.overflowY = 'auto';
+      cardsContainer.style.height = `${this._virtualScroll.viewportHeight}px`;
+
+      // Teardown any previous listener before installing a fresh one.
+      this._teardownVirtualScroll();
+
+      this._vsContainer = cardsContainer;
+      this._vsMode = 'cards';
+
+      let _vsRaf = null;
+      this._vsScrollHandler = () => {
+        if (_vsRaf) return;
+        _vsRaf = requestAnimationFrame(() => {
+          _vsRaf = null;
+          this._patchVirtualRows();
+        });
+      };
+      cardsContainer.addEventListener('scroll', this._vsScrollHandler, { passive: true });
+    }
+
     return cardsContainer;
+  }
+
+  /**
+   * Build a single card element for use in renderCards and _patchVirtualRows.
+   */
+  _buildCard(row, actualRowIndex, visibleFields, hiddenFields, hasHiddenFields) {
+    const card = document.createElement('div');
+    card.className = 'tc-card';
+    card.setAttribute('role', 'listitem');
+    if (hasHiddenFields) {
+      card.className += ' tc-card-expandable';
+    }
+    card.dataset.rowIndex = actualRowIndex;
+
+    // Bulk selection checkbox if enabled
+    if (this.config.bulk.enabled) {
+      const checkboxContainer = document.createElement('div');
+      checkboxContainer.className = 'tc-card-checkbox';
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'tc-row-checkbox';
+      checkbox.dataset.rowIndex = actualRowIndex;
+      checkbox.checked = this.selectedRows.has(actualRowIndex);
+      checkbox.addEventListener('change', (e) => {
+        this.toggleRowSelection(actualRowIndex, e.target.checked);
+      });
+
+      checkboxContainer.appendChild(checkbox);
+      card.appendChild(checkboxContainer);
+    }
+
+    // Card header with expand toggle
+    const cardHeader = document.createElement('div');
+    cardHeader.className = 'tc-card-header';
+
+    // Use first column as title
+    const firstColumn = this.config.columns[0];
+    if (firstColumn) {
+      const title = document.createElement('span');
+      title.textContent = row[firstColumn.field] || `Item ${actualRowIndex + 1}`;
+      cardHeader.appendChild(title);
+    }
+
+    // Add expand toggle if there are hidden fields
+    if (hasHiddenFields) {
+      const toggle = document.createElement('span');
+      toggle.className = 'tc-card-toggle';
+      toggle.textContent = '▼';
+      cardHeader.appendChild(toggle);
+
+      cardHeader.addEventListener('click', () => {
+        this.toggleCard(card);
+      });
+      cardHeader.style.cursor = 'pointer';
+    }
+
+    card.appendChild(cardHeader);
+
+    // Card body with visible fields
+    const cardBody = document.createElement('div');
+    cardBody.className = 'tc-card-body';
+
+    (visibleFields || []).forEach(column => {
+      if (column === firstColumn) return; // Skip first column as it's in header
+
+      const fieldEl = document.createElement('div');
+      fieldEl.className = 'tc-card-field';
+
+      const label = document.createElement('span');
+      label.className = 'tc-card-label';
+      label.textContent = column.label + ':';
+
+      const value = document.createElement('span');
+      value.className = 'tc-card-value';
+
+      // Format lookup values
+      let displayValue = row[column.field] || '';
+      if (column.lookup && displayValue) {
+        this.formatLookupValue(column, displayValue).then(formatted => {
+          value.textContent = formatted;
+        });
+      } else {
+        value.textContent = displayValue;
+      }
+
+      value.dataset.field = column.field;
+
+      // Make field editable if configured and user has permission
+      if (this.config.editable && column.editable && this.hasPermission('edit', row)) {
+        value.className += ' tc-editable';
+        value.addEventListener('click', (e) => this.startEdit(e, actualRowIndex, column.field));
+      }
+
+      fieldEl.appendChild(label);
+      fieldEl.appendChild(value);
+      cardBody.appendChild(fieldEl);
+    });
+
+    card.appendChild(cardBody);
+
+    // Hidden fields section (initially hidden)
+    if (hasHiddenFields) {
+      const hiddenSection = document.createElement('div');
+      hiddenSection.className = 'tc-card-hidden-fields';
+
+      (hiddenFields || []).forEach(column => {
+        const fieldEl = document.createElement('div');
+        fieldEl.className = 'tc-card-field';
+
+        const label = document.createElement('span');
+        label.className = 'tc-card-label';
+        label.textContent = column.label + ':';
+
+        const value = document.createElement('span');
+        value.className = 'tc-card-value';
+
+        // Format lookup values
+        let displayValue = row[column.field] || '';
+        if (column.lookup && displayValue) {
+          this.formatLookupValue(column, displayValue).then(formatted => {
+            value.textContent = formatted;
+          });
+        } else {
+          value.textContent = displayValue;
+        }
+
+        value.dataset.field = column.field;
+
+        // Make field editable if configured and user has permission
+        if (this.config.editable && column.editable && this.hasPermission('edit', row)) {
+          value.className += ' tc-editable';
+          value.addEventListener('click', (e) => this.startEdit(e, actualRowIndex, column.field));
+        }
+
+        fieldEl.appendChild(label);
+        fieldEl.appendChild(value);
+        hiddenSection.appendChild(fieldEl);
+      });
+
+      card.appendChild(hiddenSection);
+    }
+
+    return card;
   }
 
   /**
@@ -4379,11 +4507,112 @@ class TableCrafter {
   }
 
   disableVirtualScroll() {
+    this._teardownVirtualScroll();
     this._virtualScroll = null;
   }
 
   isVirtualScrolling() {
     return Boolean(this._virtualScroll);
+  }
+
+  /**
+   * Patch the virtual-scroll window in-place without a full re-render.
+   * Called by the rAF-throttled scroll listener. Updates spacer heights and
+   * replaces only the data-row slice in tbody (table mode) or in the cards
+   * container (card mode). Never touches thead.
+   */
+  _patchVirtualRows() {
+    if (!this._vsContainer || !this._virtualScroll) return;
+
+    const scrollTop = this._vsContainer.scrollTop;
+    const filteredData = this.getFilteredData();
+    const vsWindow = this.computeVirtualWindow({
+      scrollTop,
+      viewportHeight: this._virtualScroll.viewportHeight,
+      rowHeight: this._virtualScroll.rowHeight,
+      totalRows: filteredData.length,
+      overscan: this._virtualScroll.overscan
+    });
+
+    if (this._vsMode === 'table') {
+      const tbody = this._vsContainer.querySelector('tbody');
+      if (!tbody) return;
+
+      tbody.innerHTML = '';
+
+      // Top spacer
+      const topSpacer = document.createElement('tr');
+      topSpacer.className = 'tc-vs-top-spacer';
+      topSpacer.style.height = `${vsWindow.topPadding}px`;
+      tbody.appendChild(topSpacer);
+
+      // Visible data rows
+      const sliceData = filteredData.slice(vsWindow.startIndex, vsWindow.endIndex);
+      sliceData.forEach((row, i) => {
+        const actualRowIndex = vsWindow.startIndex + i;
+        tbody.appendChild(this._buildDataRow(row, actualRowIndex));
+      });
+
+      // Bottom spacer
+      const bottomSpacer = document.createElement('tr');
+      bottomSpacer.className = 'tc-vs-bottom-spacer';
+      bottomSpacer.style.height = `${vsWindow.bottomPadding}px`;
+      tbody.appendChild(bottomSpacer);
+    } else if (this._vsMode === 'cards') {
+      // Update spacer heights
+      const topSpacer = this._vsContainer.querySelector('.tc-vs-top-spacer-card');
+      const bottomSpacer = this._vsContainer.querySelector('.tc-vs-bottom-spacer-card');
+
+      if (topSpacer) topSpacer.style.height = `${vsWindow.topPadding}px`;
+      if (bottomSpacer) bottomSpacer.style.height = `${vsWindow.bottomPadding}px`;
+
+      // Replace visible cards
+      Array.from(this._vsContainer.querySelectorAll('.tc-card')).forEach(c => c.remove());
+
+      const breakpoint = this.getCurrentBreakpoint();
+      const visibleFields = this.getVisibleFields(breakpoint);
+      const hiddenFields = this.getHiddenFields(breakpoint);
+      const hasHiddenFields = hiddenFields.length > 0;
+
+      const sliceData = filteredData.slice(vsWindow.startIndex, vsWindow.endIndex);
+      const fragment = document.createDocumentFragment();
+      sliceData.forEach((row, i) => {
+        const actualRowIndex = vsWindow.startIndex + i;
+        fragment.appendChild(this._buildCard(row, actualRowIndex, visibleFields, hiddenFields, hasHiddenFields));
+      });
+
+      if (bottomSpacer) {
+        this._vsContainer.insertBefore(fragment, bottomSpacer);
+      } else {
+        this._vsContainer.appendChild(fragment);
+      }
+    }
+  }
+
+  /**
+   * Remove the scroll listener and clear the virtual-scroll container refs.
+   * Called from destroy() and disableVirtualScroll().
+   */
+  _teardownVirtualScroll() {
+    if (this._vsScrollHandler && this._vsContainer) {
+      this._vsContainer.removeEventListener('scroll', this._vsScrollHandler);
+    }
+    this._vsScrollHandler = null;
+    this._vsContainer = null;
+    this._vsMode = null;
+  }
+
+  /**
+   * Benchmark the scroll-patch path. Runs _patchVirtualRows scrollSteps times
+   * and returns the standard bench() result shape including p95.
+   */
+  benchVirtualScroll(scrollSteps) {
+    const steps = typeof scrollSteps === 'number' && scrollSteps > 0 ? scrollSteps : 100;
+    return this.bench('virtualScroll', () => {
+      if (this._vsContainer) {
+        this._patchVirtualRows();
+      }
+    }, { runs: steps, warmup: 5 });
   }
 
   async bench(label, fn, options) {
@@ -6323,6 +6552,9 @@ class TableCrafter {
     if (this.config.responsive) {
       window.removeEventListener('resize', this.handleResize);
     }
+
+    // Teardown virtual scroll listener before clearing the container
+    this._teardownVirtualScroll();
 
     // Clear container
     this.container.innerHTML = '';
