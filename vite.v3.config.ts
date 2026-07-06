@@ -1,8 +1,50 @@
 import { resolve } from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig, build } from 'vite';
+import type { Plugin } from 'vite';
 import dts from 'vite-plugin-dts';
 
 const r = (p: string) => resolve(__dirname, p);
+
+/**
+ * Vite plugin that builds the IIFE CDN bundle after the ESM library build
+ * completes. Runs the second pass with emptyOutDir: false so the ESM output
+ * is preserved.
+ *
+ * Vite 5.x does not support array config exports, so the two-pass build is
+ * implemented as a closeBundle plugin hook instead of [esmConfig, iifConfig].
+ */
+function buildCdnIife(): Plugin {
+  // Guard against multiple invocations (closeBundle fires per output chunk).
+  let built = false;
+
+  return {
+    name: 'build-cdn-iife',
+    apply: 'build',
+    async closeBundle() {
+      if (built) return;
+      built = true;
+
+      await build({
+        configFile: false,
+        build: {
+          outDir: resolve(__dirname, 'dist/v3'),
+          emptyOutDir: false, // do NOT clear ESM output
+          lib: {
+            entry: r('src/cdn.ts'),
+            name: 'TableCrafter',
+            formats: ['iife'],
+            fileName: () => 'tablecrafter.global.js',
+          },
+          minify: true,
+          rollupOptions: {
+            external: ['xlsx', 'jspdf', 'jspdf-autotable'],
+            output: { inlineDynamicImports: true },
+          },
+        },
+      });
+    },
+  };
+}
 
 /**
  * Vite v3 build configuration (lib mode, multi-entry ESM + IIFE CDN bundle).
@@ -75,5 +117,6 @@ export default defineConfig({
       rollupTypes: false,
       tsconfigPath: './tsconfig.v3.json',
     }),
+    buildCdnIife(),
   ],
 });

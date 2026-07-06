@@ -1,14 +1,10 @@
 /**
  * cdn.ts
  *
- * IIFE CDN entry point.  Pre-wires the batteries wrapper with the DOM
- * renderer and exposes the global `TableCrafter` name.
+ * IIFE CDN entry. Exposes the TableCrafter batteries wrapper as window.TableCrafter.
+ * Built separately as dist/v3/tablecrafter.global.js (IIFE format, minified).
  *
- * This file is the sole entry for `dist/tablecrafter.global.js`.
- * It includes: core, dom renderer, csv/json export, base cells, json/csv
- * adapters.  xlsx / pdf / google-sheets / xml stay import-only to keep the
- * IIFE under the 30KB gz budget.
- * Phase 0: typed stub -- wired up in Phase 4.
+ * Included in the bundle: core, dom renderer, csv/json export, base cells,
+ * json/csv adapters. xlsx/pdf/google-sheets/xml remain dynamic-import-only.
  */
-
-export { default } from './index';
+export { TableCrafter as default } from './index';
