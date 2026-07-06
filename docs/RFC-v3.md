@@ -1,6 +1,6 @@
 # RFC: TableCrafter.js v3 Architecture
 
-Status: Proposed
+Status: Approved (2026-07-07)
 Supersedes epics: #32 (npm), #33 (TypeScript), #34 (build), #35 (CDN), #49 (theming)
 Absorbs: Epic #323 parity work (#324-#339) lands on the v3 module boundaries below
 Baseline: v2.0.0, a 5,810-line monolithic `TableCrafter` class, zero deps, ~27KB min+gz, 850+ Jest tests
