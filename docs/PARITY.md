@@ -1,4 +1,4 @@
-Maintained jointly with the plugin repo copy at TableCrafter/tablecrafter/docs/PARITY.md. Update both when either side ships parity work.
+Maintained jointly with the plugin repo copy at TableCrafter/tablecrafter-pro/docs/PARITY.md (private dev repo). Update both when either side ships parity work.
 
 # TableCrafter Parity Matrix
 
