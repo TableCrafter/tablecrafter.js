@@ -115,6 +115,15 @@ export interface SortState {
   direction: SortDirection;
 }
 
+/** Options for the Store.sort() imperative helper. */
+export interface SortOptions {
+  /**
+   * When true, push/update this key in the multi-sort priority list instead of
+   * replacing the entire sort state (v2 `sort(field, { append: true })` parity).
+   */
+  append?: boolean | undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Filtering
 // ---------------------------------------------------------------------------
@@ -168,8 +177,8 @@ export interface TableState {
   sortedRows: unknown[];
   /** Current page slice shown to the renderer. */
   displayRows: unknown[];
-  /** Active sort or null. */
-  sort: SortState | null;
+  /** Active sort keys in priority order (empty array = no sort). */
+  sort: SortState[];
   /** Per-column filter values. */
   filters: Record<string, ColumnFilter | undefined>;
   /** Current freetext search query. */
@@ -201,6 +210,8 @@ export interface TableState {
 export interface SortPayload {
   column: string;
   direction?: SortDirection | undefined;
+  /** Forwarded from Store.sort() opts; see SortOptions. */
+  opts?: SortOptions | undefined;
 }
 
 export interface FilterPayload {
@@ -254,7 +265,7 @@ export interface TableCrafterEventMap {
   'row:add': { row: unknown };
   'row:update': { rowId: RowId; data: Record<string, unknown> };
   'row:delete': { rowId: RowId };
-  'sort': SortState;
+  'sort': SortState[];
   'filter': { column: string; filter: ColumnFilter | null };
   'page:change': { page: number; pageSize: number };
   'selection:change': { selection: Set<RowId> };
@@ -304,7 +315,7 @@ export interface Store {
   once(event: string, handler: EventHandler): Store;
 
   // Convenience imperative helpers (sugar over dispatch)
-  sort(column: string, direction?: SortDirection): void;
+  sort(column: string, direction?: SortDirection, opts?: SortOptions): void;
   setFilter(column: string, filter: ColumnFilter | null): void;
   clearFilter(column?: string): void;
   search(query: string): void;

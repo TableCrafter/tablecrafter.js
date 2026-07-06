@@ -108,15 +108,15 @@ describe('core/state module', () => {
   it('toggles direction on repeated sort of the same column', () => {
     const s = make();
     s.sort('age');
-    expect(s.getState().sort).toEqual({ column: 'age', direction: 'asc' });
+    expect(s.getState().sort).toEqual([{ column: 'age', direction: 'asc' }]);
     s.sort('age');
-    expect(s.getState().sort).toEqual({ column: 'age', direction: 'desc' });
+    expect(s.getState().sort).toEqual([{ column: 'age', direction: 'desc' }]);
   });
 
   it('honors an explicit direction', () => {
     const s = make();
     s.sort('name', 'desc');
-    expect(s.getState().sort?.direction).toBe('desc');
+    expect(s.getState().sort[0]?.direction).toBe('desc');
   });
 
   it('sorts nulls last ascending (v2 semantics)', () => {
@@ -138,12 +138,12 @@ describe('core/state module', () => {
     expect(names[0]).toBe('Bob'); // shortest
   });
 
-  it('emits a sort event with the SortState payload', () => {
+  it('emits a sort event with the SortState[] payload', () => {
     const s = make();
     const spy = vi.fn();
     s.on('sort', spy);
     s.sort('city', 'asc');
-    expect(spy).toHaveBeenCalledWith({ column: 'city', direction: 'asc' });
+    expect(spy).toHaveBeenCalledWith([{ column: 'city', direction: 'asc' }]);
   });
 
   // --- filtering --------------------------------------------------------
@@ -511,7 +511,7 @@ describe('core/state module', () => {
   it('dispatch drives the same behavior as the imperative helpers', () => {
     const s = make();
     s.dispatch({ type: 'SORT', payload: { column: 'age', direction: 'asc' } });
-    expect(s.getState().sort).toEqual({ column: 'age', direction: 'asc' });
+    expect(s.getState().sort).toEqual([{ column: 'age', direction: 'asc' }]);
     s.dispatch({ type: 'SEARCH', payload: { query: 'bob' } });
     expect(s.getState().filteredRows).toHaveLength(1);
     s.dispatch({ type: 'SET_ROWS', payload: { rows: [{ id: 1 }] } });
@@ -547,7 +547,7 @@ describe('core/state module', () => {
     };
     s.use(plugin);
     s.sort('age');
-    expect(s.getState().sort).toBeNull();
+    expect(s.getState().sort).toEqual([]);
     expect(sortSpy).not.toHaveBeenCalled();
   });
 

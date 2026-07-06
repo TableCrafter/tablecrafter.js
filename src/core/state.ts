@@ -29,6 +29,7 @@ import type {
   PluginContext,
   Action,
   SortDirection,
+  SortOptions,
   SortState,
   ColumnFilter,
   QueryNode,
@@ -293,7 +294,7 @@ export function createTable(config: TableCrafterConfig): TableCrafterStore {
   const source: string | null =
     typeof config.data === 'string' ? config.data : null;
 
-  let sort: SortState | null = null;
+  let sort: SortState[] = [];
   const filters = new Map<string, ColumnFilter>();
   let searchQuery = '';
   let searchAst: QueryNode | null = null;
@@ -373,16 +374,17 @@ export function createTable(config: TableCrafterConfig): TableCrafterStore {
   }
 
   function computeSorted(filtered: unknown[]): unknown[] {
-    if (sort === null) return filtered.slice();
-    const active = sort;
-    const cmp = comparators.get(active.column);
-    const dir = active.direction === 'desc' ? -1 : 1;
+    if (sort.length === 0) return filtered.slice();
+    const activeSortKeys = sort;
     const indexed = filtered.map((row, idx) => ({ row, idx }));
     indexed.sort((a, b) => {
-      const av = isRecord(a.row) ? a.row[active.column] : undefined;
-      const bv = isRecord(b.row) ? b.row[active.column] : undefined;
-      const base = cmp ? cmp(av, bv, a.row, b.row) : defaultCompare(av, bv);
-      if (base !== 0) return dir * base;
+      for (const key of activeSortKeys) {
+        const cmp = comparators.get(key.column);
+        const av = isRecord(a.row) ? a.row[key.column] : undefined;
+        const bv = isRecord(b.row) ? b.row[key.column] : undefined;
+        const base = cmp ? cmp(av, bv, a.row, b.row) : defaultCompare(av, bv);
+        if (base !== 0) return key.direction === 'desc' ? -base : base;
+      }
       return a.idx - b.idx; // stable tie-break
     });
     return indexed.map((e) => e.row);
@@ -415,7 +417,7 @@ export function createTable(config: TableCrafterConfig): TableCrafterStore {
       filteredRows,
       sortedRows,
       displayRows,
-      sort: sort ? { ...sort } : null,
+      sort: sort.map((s) => ({ ...s })),
       filters: filterObj,
       searchQuery,
       searchAst: searchAst ? { ...searchAst } : null,
@@ -470,20 +472,52 @@ export function createTable(config: TableCrafterConfig): TableCrafterStore {
   );
 
   // ---- operations --------------------------------------------------------
-  function doSort(column: string, direction?: SortDirection): void {
+  function doSort(column: string, direction?: SortDirection, opts?: SortOptions): void {
+    const append = opts?.append === true;
+
+    // Compute the direction that will result from this call (for plugin hooks).
     let nextDir: SortDirection;
     if (direction) {
       nextDir = direction;
-    } else if (sort && sort.column === column) {
-      nextDir = sort.direction === 'asc' ? 'desc' : 'asc';
+    } else if (append) {
+      const existing = sort.find((s) => s.column === column);
+      nextDir = existing ? (existing.direction === 'asc' ? 'desc' : 'asc') : 'asc';
     } else {
-      nextDir = 'asc';
+      const primary = sort[0];
+      nextDir =
+        primary && primary.column === column && sort.length === 1
+          ? primary.direction === 'asc'
+            ? 'desc'
+            : 'asc'
+          : 'asc';
     }
+
     if (!plugins.fireHook('beforeSort', { column, direction: nextDir })) return;
-    sort = { column, direction: nextDir };
+
+    if (append) {
+      const idx = sort.findIndex((s) => s.column === column);
+      if (idx >= 0) {
+        const prevDir = sort[idx]!.direction;
+        sort = sort.map((s, i) =>
+          i === idx
+            ? { column: s.column, direction: direction ?? (prevDir === 'asc' ? 'desc' : 'asc') }
+            : s
+        );
+      } else {
+        sort = [...sort, { column, direction: direction ?? 'asc' }];
+      }
+    } else {
+      const primary = sort[0];
+      if (!direction && primary && primary.column === column && sort.length === 1) {
+        sort = [{ column, direction: primary.direction === 'asc' ? 'desc' : 'asc' }];
+      } else {
+        sort = [{ column, direction: direction ?? 'asc' }];
+      }
+    }
+
     page = 1;
     notify();
-    emitter.emit('sort', { column: sort.column, direction: sort.direction });
+    emitter.emit('sort', sort.map((s) => ({ ...s })));
     plugins.fireHook('afterSort', { column, direction: nextDir });
   }
 
@@ -737,7 +771,7 @@ export function createTable(config: TableCrafterConfig): TableCrafterStore {
   function dispatch(action: Action): void {
     switch (action.type) {
       case 'SORT':
-        doSort(action.payload.column, action.payload.direction);
+        doSort(action.payload.column, action.payload.direction, action.payload.opts);
         break;
       case 'FILTER':
         doSetFilter(action.payload.column, action.payload.filter);
@@ -871,7 +905,8 @@ export function createTable(config: TableCrafterConfig): TableCrafterStore {
       return store;
     },
 
-    sort: doSort,
+    sort: (column: string, direction?: SortDirection, opts?: SortOptions) =>
+      doSort(column, direction, opts),
     setFilter: doSetFilter,
     clearFilter: doClearFilter,
     search: doSearch,
