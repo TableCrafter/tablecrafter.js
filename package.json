@@ -1,6 +1,6 @@
 {
   "name": "tablecrafter",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Zero-dependency JavaScript data table with inline editing, advanced filtering, and mobile card view. Companion library to the TableCrafter WordPress plugin.",
   "main": "dist/tablecrafter.cjs.js",
   "module": "dist/tablecrafter.esm.mjs",
@@ -136,7 +136,7 @@
     "test:v3:watch": "vitest --config vitest.config.ts",
     "typecheck": "tsc --project tsconfig.v3.json",
     "size": "size-limit",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm run build:v3 && npm test"
   },
   "size-limit": [
     {
