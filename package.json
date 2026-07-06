@@ -150,6 +150,11 @@
       "gzip": true
     },
     {
+      "path": "dist/v3/render/dom.mjs",
+      "limit": "7 KB",
+      "gzip": true
+    },
+    {
       "path": "dist/v3/sorting/index.mjs",
       "limit": "1 KB",
       "gzip": true
