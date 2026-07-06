@@ -4684,16 +4684,49 @@ class TableCrafter {
       return null;
     }
 
+    // Resolve placeholders, preserving type so string-functions like CONCAT /
+    // LENGTH / UPPER / LOWER can read text values directly. Arithmetic /
+    // comparison branches still coerce via Number(); a non-numeric value used
+    // there flows through to NaN and the outer guard turns it into null.
     const resolved = [];
     for (const tok of tokens) {
       if (tok.type === 'placeholder') {
         if (!row || !(tok.name in row)) return null;
-        const num = Number(row[tok.name]);
-        if (Number.isNaN(num)) return null;
-        resolved.push({ type: 'number', value: num });
+        const v = row[tok.name];
+        if (typeof v === 'number') {
+          resolved.push({ type: 'number', value: v });
+        } else if (typeof v === 'string') {
+          resolved.push({ type: 'string', value: v });
+        } else if (typeof v === 'boolean') {
+          resolved.push({ type: 'number', value: v ? 1 : 0 });
+        } else if (v === null || v === undefined) {
+          return null;
+        } else {
+          // Try numeric coercion first; otherwise fall back to string.
+          const num = Number(v);
+          if (!Number.isNaN(num)) {
+            resolved.push({ type: 'number', value: num });
+          } else {
+            resolved.push({ type: 'string', value: String(v) });
+          }
+        }
       } else {
         resolved.push(tok);
       }
+    }
+
+    // Comparison operators and mixed expressions (comparisons + arithmetic)
+    // use the recursive descent parser; pure arithmetic uses the faster postfix path.
+    if (resolved.some(t => t.type === 'cmp')) {
+      const ctx = { tokens: resolved, pos: 0, error: null };
+      const cmpResult = this._parseFormulaExpression(ctx);
+      if (ctx.error || ctx.pos !== resolved.length) {
+        warnOnce(ctx.error || 'comparison parse error');
+        return null;
+      }
+      if (cmpResult === null) return null;
+      if (typeof cmpResult === 'number' && !Number.isFinite(cmpResult)) return null;
+      return cmpResult;
     }
 
     const postfix = this._toPostfix(resolved);
@@ -4703,7 +4736,8 @@ class TableCrafter {
     }
 
     const result = this._evaluatePostfix(postfix);
-    if (result === null || !Number.isFinite(result)) return null;
+    if (result === null) return null;
+    if (typeof result === 'number' && !Number.isFinite(result)) return null;
     return result;
   }
 
@@ -4769,15 +4803,59 @@ class TableCrafter {
     return left;
   }
 
+  _parseFormulaTerm(ctx) {
+    let left = this._parseFormulaFactor(ctx);
+    if (left === null) return null;
+    while (!ctx.error && ctx.pos < ctx.tokens.length) {
+      const tok = ctx.tokens[ctx.pos];
+      if (tok.type === 'op' && (tok.value === '*' || tok.value === '/')) {
+        ctx.pos++;
+        const right = this._parseFormulaFactor(ctx);
+        if (right === null) return null;
+        if (tok.value === '/') {
+          if (right === 0) { ctx.error = 'division by zero'; return null; }
+          left = left / right;
+        } else {
+          left = left * right;
+        }
+      } else break;
+    }
+    return left;
+  }
+
+  _parseFormulaFactor(ctx) {
+    if (ctx.pos >= ctx.tokens.length) { ctx.error = 'unexpected end'; return null; }
+    const tok = ctx.tokens[ctx.pos];
+    if (tok.type === 'number') { ctx.pos++; return tok.value; }
+    if (tok.type === 'string') { ctx.pos++; return tok.value; }
+    if (tok.type === 'lparen') {
+      ctx.pos++;
+      const inner = this._parseFormulaExpression(ctx);
+      if (inner === null) return null;
+      if (ctx.tokens[ctx.pos] && ctx.tokens[ctx.pos].type === 'rparen') {
+        ctx.pos++;
+        return inner;
+      }
+      ctx.error = 'mismatched parentheses';
+      return null;
+    }
+    ctx.error = `unexpected token ${tok.type}`;
+    return null;
+  }
+
   _splitFormulaArgs(s) {
     const args = [];
-    let depth = 0, start = 0;
+    let depth = 0, inQuote = false, start = 0;
     for (let i = 0; i < s.length; i++) {
-      if (s[i] === '(') depth++;
-      else if (s[i] === ')') depth--;
-      else if (s[i] === ',' && depth === 0) {
-        args.push(s.slice(start, i).trim());
-        start = i + 1;
+      if (s[i] === '"' && (i === 0 || s[i - 1] !== '\\')) {
+        inQuote = !inQuote;
+      } else if (!inQuote) {
+        if (s[i] === '(') depth++;
+        else if (s[i] === ')') depth--;
+        else if (s[i] === ',' && depth === 0) {
+          args.push(s.slice(start, i).trim());
+          start = i + 1;
+        }
       }
     }
     args.push(s.slice(start).trim());
@@ -4825,10 +4903,13 @@ class TableCrafter {
       case 'MID':      return String(args[0]).slice(nums[1] - 1, (nums[1] - 1) + nums[2]);
       // Logic
       case 'IF': {
+        if (rawArgs.length !== 3) return null;
         let cond;
         try { cond = !!Function('"use strict"; return (' + rawArgs[0] + ')')(); } catch (_) { cond = !!args[0]; }
         return cond ? this._resolveFormulaArg(rawArgs[1], row) : this._resolveFormulaArg(rawArgs[2], row);
       }
+      // LENGTH: alias for LEN (used in formula-strings PR)
+      case 'LENGTH': return args.length === 1 ? String(args[0] == null ? '' : args[0]).length : null;
       // Aggregates (cross-row)
       case 'SUM': {
         const field = String(args[0]);
@@ -4886,6 +4967,14 @@ class TableCrafter {
         const name = s.slice(i + 1, end);
         if (!/^[a-zA-Z_][\w]*$/.test(name)) return null;
         tokens.push({ type: 'placeholder', name });
+        i = end + 1;
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        const quote = ch;
+        const end = s.indexOf(quote, i + 1);
+        if (end === -1) return null;
+        tokens.push({ type: 'string', value: s.slice(i + 1, end) });
         i = end + 1;
         continue;
       }
