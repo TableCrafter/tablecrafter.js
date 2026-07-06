@@ -1,0 +1,433 @@
+/**
+ * render/dom.css
+ *
+ * Stylesheet for the v3 default DOM renderer (render/dom.ts).
+ *
+ * Architecture (RFC-v3 section: Theming):
+ *   @layer tablecrafter.base  -- structural skeleton (display, layout, z-index)
+ *   @layer tablecrafter.theme -- all colour / spacing tokens as custom properties
+ *   @layer tablecrafter.user  -- empty; consumer rules land here and override
+ *                                theme at 0 specificity
+ *
+ * Card mode is CSS-first via a container query on .tc-table-wrapper, with a
+ * [data-card-mode] attribute fallback that dom.ts toggles from a ResizeObserver
+ * when container queries are unsupported.
+ *
+ * Themes are selected via [data-theme] on .tc-root.  Consumers override tokens
+ * by setting CSS variables on their container or by adding rules to
+ * @layer tablecrafter.user.
+ */
+
+@layer tablecrafter.base, tablecrafter.theme, tablecrafter.user;
+
+/* =========================================================================
+   BASE -- structural skeleton
+   ========================================================================= */
+@layer tablecrafter.base {
+  .tc-root {
+    font-family: var(--tc-font-family);
+    font-size: var(--tc-font-size);
+    line-height: var(--tc-line-height);
+    color: var(--tc-text);
+    position: relative;
+  }
+
+  .tc-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--tc-gap);
+    margin-bottom: var(--tc-gap);
+  }
+
+  .tc-search {
+    flex: 0 0 auto;
+    min-width: 12rem;
+    padding: var(--tc-input-padding);
+    border: 1px solid var(--tc-input-border);
+    border-radius: var(--tc-radius-sm);
+    background: var(--tc-input-bg);
+    color: var(--tc-input-text);
+    font: inherit;
+  }
+
+  .tc-filter-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    flex: 1 1 auto;
+  }
+
+  .tc-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--tc-radius);
+    background: var(--tc-chip-bg);
+    color: var(--tc-chip-text);
+    font-size: 0.85em;
+  }
+
+  .tc-filter-clear {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-size: 1.1em;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .tc-add-row {
+    flex: 0 0 auto;
+    padding: var(--tc-input-padding);
+    border: 0;
+    border-radius: var(--tc-radius-sm);
+    background: var(--tc-accent);
+    color: var(--tc-accent-text);
+    cursor: pointer;
+    font: inherit;
+  }
+
+  /* Card mode uses container queries against this element's inline size. */
+  .tc-table-wrapper {
+    container-type: inline-size;
+    container-name: tc-wrapper;
+    position: relative;
+    overflow: auto;
+    border: 1px solid var(--tc-border);
+    border-radius: var(--tc-radius);
+    background: var(--tc-bg);
+  }
+
+  .tc-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .tc-th,
+  .tc-cell {
+    padding: var(--tc-cell-padding);
+    text-align: start;
+    border-bottom: 1px solid var(--tc-border);
+  }
+
+  .tc-th {
+    background: var(--tc-header-bg);
+    color: var(--tc-header-text);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    white-space: nowrap;
+  }
+
+  .tc-sortable {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .tc-sort-indicator {
+    margin-inline-start: 0.35em;
+    font-size: 0.75em;
+  }
+
+  .tc-sort-priority {
+    display: inline-block;
+    margin-inline-start: 0.25em;
+    min-width: 1.1em;
+    height: 1.1em;
+    line-height: 1.1em;
+    text-align: center;
+    font-size: 0.7em;
+    border-radius: 50%;
+    background: var(--tc-accent);
+    color: var(--tc-accent-text);
+  }
+
+  .tc-row {
+    cursor: default;
+  }
+
+  .tc-cell[data-editable='true'] {
+    cursor: text;
+  }
+
+  .tc-editor {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    padding: 0.25rem;
+    border: 1px solid var(--tc-border-focus);
+    border-radius: var(--tc-radius-sm);
+    background: var(--tc-input-bg);
+    color: var(--tc-input-text);
+  }
+
+  .tc-star-editor {
+    display: inline-flex;
+    gap: 0.15rem;
+    border: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+  .tc-no-results {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: var(--tc-text-muted);
+    font-style: italic;
+  }
+
+  /* Cards are always in the DOM; the layer / attribute toggles visibility. */
+  .tc-cards-container {
+    display: none;
+    gap: var(--tc-gap);
+    padding: var(--tc-gap);
+  }
+
+  .tc-card {
+    border: 1px solid var(--tc-border);
+    border-radius: var(--tc-radius);
+    padding: var(--tc-gap);
+    background: var(--tc-bg);
+  }
+
+  .tc-card-field {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+    padding: 0.25rem 0;
+  }
+
+  .tc-card-label {
+    font-size: 0.75em;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--tc-text-muted);
+  }
+
+  .tc-card-hidden {
+    display: none;
+  }
+
+  .tc-card--expanded .tc-card-hidden {
+    display: block;
+  }
+
+  /* Loading overlay + spinner */
+  .tc-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--tc-overlay-bg);
+    z-index: 5;
+  }
+
+  .tc-spinner {
+    width: 2rem;
+    height: 2rem;
+    border: 3px solid var(--tc-border);
+    border-top-color: var(--tc-accent);
+    border-radius: 50%;
+    animation: tc-spin 1s linear infinite;
+  }
+
+  @keyframes tc-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .tc-error {
+    padding: 0.75rem 1rem;
+    color: var(--tc-danger-text);
+    background: var(--tc-danger-bg);
+    border-radius: var(--tc-radius-sm);
+    margin: var(--tc-gap);
+  }
+
+  /* Pagination */
+  .tc-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--tc-gap);
+    margin-top: var(--tc-gap);
+  }
+
+  .tc-page-prev,
+  .tc-page-next {
+    padding: var(--tc-input-padding);
+    border: 1px solid var(--tc-accent);
+    border-radius: var(--tc-radius-sm);
+    background: var(--tc-bg);
+    color: var(--tc-accent);
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .tc-page-prev:disabled,
+  .tc-page-next:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Context menu (Popover API + positioned-div fallback) */
+  .tc-context-menu {
+    position: fixed;
+    margin: 0;
+    padding: 0.25rem;
+    min-width: 8rem;
+    border: 1px solid var(--tc-border);
+    border-radius: var(--tc-radius-sm);
+    background: var(--tc-bg);
+    box-shadow: var(--tc-shadow);
+    z-index: 1000;
+  }
+
+  .tc-context-menu:popover-open {
+    display: block;
+  }
+
+  .tc-menu-item {
+    display: block;
+    width: 100%;
+    text-align: start;
+    padding: 0.4rem 0.75rem;
+    border: 0;
+    background: transparent;
+    color: var(--tc-text);
+    cursor: pointer;
+    font: inherit;
+    border-radius: var(--tc-radius-sm);
+  }
+
+  .tc-menu-item:hover,
+  .tc-menu-item:focus-visible {
+    background: var(--tc-header-hover);
+    outline: none;
+  }
+
+  .tc-dialog {
+    border: 1px solid var(--tc-border);
+    border-radius: var(--tc-radius);
+    padding: var(--tc-gap);
+    background: var(--tc-bg);
+    color: var(--tc-text);
+  }
+
+  .tc-dialog::backdrop {
+    background: var(--tc-overlay-bg);
+  }
+
+  /* Virtual-scroll spacers carry no visual styling of their own. */
+  .tc-vs-top-spacer,
+  .tc-vs-bottom-spacer,
+  .tc-vs-top-spacer-card,
+  .tc-vs-bottom-spacer-card {
+    padding: 0;
+    border: 0;
+  }
+
+  .tc-hidden {
+    display: none !important;
+  }
+
+  /* --- Card mode: container query (the enhancement / baseline path) --- */
+  @container tc-wrapper (max-width: 640px) {
+    .tc-table {
+      display: none;
+    }
+    .tc-cards-container {
+      display: grid;
+    }
+  }
+
+  /* --- Card mode: attribute fallback (ResizeObserver-driven) --- */
+  .tc-root[data-card-mode='true'] .tc-table {
+    display: none;
+  }
+  .tc-root[data-card-mode='true'] .tc-cards-container {
+    display: grid;
+  }
+}
+
+/* =========================================================================
+   THEME -- colour / spacing tokens as custom properties
+   ========================================================================= */
+@layer tablecrafter.theme {
+  .tc-root {
+    --tc-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --tc-font-size: 14px;
+    --tc-line-height: 1.5;
+
+    --tc-radius: 8px;
+    --tc-radius-sm: 4px;
+    --tc-gap: 12px;
+    --tc-cell-padding: 10px 14px;
+    --tc-input-padding: 8px 12px;
+
+    --tc-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  }
+
+  .tc-root[data-theme='default'] {
+    --tc-bg: #ffffff;
+    --tc-border: #e2e8f0;
+    --tc-border-focus: #3b82f6;
+    --tc-text: #1f2937;
+    --tc-text-muted: #6b7280;
+    --tc-accent: #3b82f6;
+    --tc-accent-hover: #2563eb;
+    --tc-accent-text: #ffffff;
+    --tc-header-bg: #f8fafc;
+    --tc-header-text: #374151;
+    --tc-header-hover: #eef2f7;
+    --tc-input-bg: #ffffff;
+    --tc-input-border: #cbd5e1;
+    --tc-input-text: #1f2937;
+    --tc-selected-bg: #dbeafe;
+    --tc-chip-bg: #e2e8f0;
+    --tc-chip-text: #334155;
+    --tc-overlay-bg: rgba(255, 255, 255, 0.7);
+    --tc-danger-bg: #fee2e2;
+    --tc-danger-text: #991b1b;
+  }
+
+  .tc-root[data-theme='dark'] {
+    --tc-bg: #1e293b;
+    --tc-border: #334155;
+    --tc-border-focus: #60a5fa;
+    --tc-text: #e2e8f0;
+    --tc-text-muted: #94a3b8;
+    --tc-accent: #60a5fa;
+    --tc-accent-hover: #3b82f6;
+    --tc-accent-text: #0f172a;
+    --tc-header-bg: #0f172a;
+    --tc-header-text: #e2e8f0;
+    --tc-header-hover: #1e293b;
+    --tc-input-bg: #0f172a;
+    --tc-input-border: #475569;
+    --tc-input-text: #e2e8f0;
+    --tc-selected-bg: #1e3a5f;
+    --tc-chip-bg: #334155;
+    --tc-chip-text: #e2e8f0;
+    --tc-overlay-bg: rgba(15, 23, 42, 0.7);
+    --tc-danger-bg: #7f1d1d;
+    --tc-danger-text: #fecaca;
+  }
+
+  /* Selection highlight is a theme concern (uses the token). */
+  .tc-row.tc-selected,
+  .tc-card.tc-selected {
+    background: var(--tc-selected-bg);
+  }
+}
+
+/* =========================================================================
+   USER -- intentionally empty.  Consumer overrides land here.
+   ========================================================================= */
+@layer tablecrafter.user {
+}
