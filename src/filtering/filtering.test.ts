@@ -228,7 +228,7 @@ function makeState(overrides: Partial<TableState> = {}): TableState {
     filteredRows: rows.slice(),
     sortedRows: rows.slice(),
     displayRows: rows.slice(),
-    sort: null,
+    sort: [],
     filters: {},
     searchQuery: '',
     searchAst: null,
