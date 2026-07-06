@@ -38,14 +38,16 @@ table.render();
 | Per-column filters | Text, multiselect, date range, number range; type auto-detection |
 | Advanced search grammar | AND / OR / negation / `field:value` / regex / comparison operators |
 | Mobile card view | Responsive breakpoints, expandable sections, field-level visibility |
-| Formula columns | Arithmetic and function library evaluated per row |
-| Conditional formatting | Data bars, color scales, icon sets |
+| Virtual scroll | Windowed rendering via `enableVirtualScroll()` -- no pagination required |
+| Formula columns | Arithmetic, comparisons, IF, CONCAT, LENGTH, UPPER, LOWER |
+| Conditional formatting | Data bars, color scales, icon sets; ARIA labels on visual-only cues |
+| Heatmap cells | Inline SVG heatmap from an array-of-numbers (`cellType: 'heatmap'`) |
 | Cell renderers | Badge, link, progress bar, sparkline built-in |
 | Cell range selection | Click-drag range with TSV clipboard copy |
-| Right-click context menu | ARIA-compliant, fully configurable items |
+| Right-click context menu | ARIA-compliant, fully configurable items; keyboard navigation |
 | Column management | Programmatic reorder, show/hide, pin left/right |
-| RTL support | Locale-driven layout flip |
-| i18n | 6 bundled locales: en, es, fr, de, ar, ur |
+| RTL support | Locale-driven layout flip (`dir="rtl"` + `tc-rtl` class) |
+| i18n | 6 bundled locales: en, es, fr, de, ar, ur; custom number/date formatters |
 
 ### Editing
 
@@ -66,9 +68,10 @@ table.render();
 | REST API | Fetch from any URL; custom auth headers; `root` path; CRUD write-back |
 | CSV export | RFC-4180, filtered, injection-safe |
 | JSON export | Serialized current dataset |
-| XLSX / PDF export | Requires optional peer deps -- see [#325](https://github.com/TableCrafter/tablecrafter.js/issues/325) |
+| XLSX / PDF export | Requires optional peer deps -- see [Installation](#installation) |
 | State persistence | localStorage / sessionStorage; saves filters, sort, page |
-| Plugin system | `use(plugin, opts)` / `unuse(name)` extension points |
+| Plugin system | `use(plugin, opts)` / `unuse(name)` with full lifecycle hooks |
+| Events API | `on` / `off` / `once` for 8 named events |
 
 ### Platform
 
@@ -76,9 +79,10 @@ table.render();
 |---|---|
 | Zero runtime dependencies | Pure vanilla JavaScript |
 | ESM + CJS + UMD builds | Works with webpack, Vite, Rollup, or a plain `<script>` tag |
+| CDN auto-init | `TableCrafter.bootstrap()` from `data-tc-bootstrap` attributes |
 | TypeScript definitions | Full `.d.ts` included (`src/tablecrafter.d.ts`) |
 | Framework-agnostic | React, Vue, Svelte, Angular, or plain HTML |
-| 48-file Jest suite | 808 passing tests |
+| jsDelivr | `https://cdn.jsdelivr.net/npm/tablecrafter@2/dist/tablecrafter.umd.min.js` |
 
 ---
 
@@ -104,6 +108,13 @@ import TableCrafter from 'tablecrafter';
 import 'tablecrafter/dist/tablecrafter.css';
 ```
 
+### Optional peer dependencies (XLSX / PDF export)
+
+```bash
+npm install xlsx                    # XLSX export
+npm install jspdf jspdf-autotable   # PDF export
+```
+
 ---
 
 ## Quick start
@@ -120,14 +131,33 @@ const table = new TableCrafter('#my-table', {
   ],
   columns: [
     { field: 'id',   label: 'ID' },
-    { field: 'name', label: 'Name',       editable: true },
-    { field: 'role', label: 'Role',       editable: true },
+    { field: 'name', label: 'Name', editable: true },
+    { field: 'role', label: 'Role', editable: true },
   ],
   editable: true,
   filterable: true,
   pagination: true,
 });
 table.render();
+</script>
+```
+
+### CDN auto-init (no JavaScript required)
+
+Any element with a `data-tc-bootstrap` attribute is instantiated automatically when
+`TableCrafter.bootstrap()` runs. The configuration comes from the element's
+`data-tc-config` JSON attribute:
+
+```html
+<div data-tc-bootstrap
+     data-tc-config='{"columns":[{"field":"name","label":"Name"}],
+                      "data":[{"name":"Alice"},{"name":"Bob"}],
+                      "filterable":true}'></div>
+
+<script src="https://cdn.jsdelivr.net/npm/tablecrafter@2/dist/tablecrafter.umd.min.js"></script>
+<script>
+const tables = TableCrafter.bootstrap();       // Map<HTMLElement, TableCrafter>
+// TableCrafter.bootstrap('#my-section');      // scope to a subtree
 </script>
 ```
 
@@ -182,6 +212,8 @@ Constructor: `new TableCrafter(container, config)` where `container` is a CSS se
   sortable: true,
   filterable: true,
   formula: 'price * qty', // computed column expression
+  aggregate: 'sum',     // sum | count | avg | min | max | distinct
+  cellType: 'heatmap',  // built-in cell type override
   lookup: {
     url: '/api/users',
     valueField: 'id',
@@ -236,7 +268,7 @@ table.render();
 
 ---
 
-## i18n example
+## i18n
 
 ```js
 const table = new TableCrafter('#table', {
@@ -254,9 +286,35 @@ const table = new TableCrafter('#table', {
 
 Six locales are bundled: `en`, `es`, `fr`, `de`, `ar`, `ur`. RTL is applied automatically for `ar` and `ur`.
 
+### Custom number and date formatters
+
+Supply `i18n.formats` to override how number and date columns render:
+
+```js
+i18n: {
+  locale: 'de',
+  formats: {
+    // Intl.NumberFormat options object, or a function(value, locale) => string
+    formatNumber: { style: 'currency', currency: 'EUR' },
+    // Function(value, locale) => string
+    formatDate: (value, locale) =>
+      new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(value)),
+  },
+},
+```
+
+### Runtime locale switching
+
+```js
+table.setLocale('fr');
+
+// Register or override message keys for any locale
+table.addMessages('es', { 'toolbar.search': 'Buscar...' });
+```
+
 ---
 
-## Plugin system example
+## Plugin system
 
 ```js
 const myPlugin = {
@@ -274,11 +332,76 @@ const table = new TableCrafter('#table', {
 });
 ```
 
+### Lifecycle hooks
+
+Plugins declare hooks inside a `hooks` object. Return `false` from any `before*` hook to
+cancel the operation. Available pairs: `beforeRender`/`afterRender`, `beforeSort`/`afterSort`,
+`beforeEdit`/`afterEdit` (payloads: `{ rowIndex, field, value }` / `{ rowIndex, field, oldValue, newValue }`),
+`beforeLoad`/`afterLoad` (payloads: `{ source }` / `{ data }`), and `destroy`.
+
+```js
+const guardPlugin = {
+  name: 'guard',
+  hooks: {
+    beforeEdit: ({ field, value }) => {
+      if (field === 'salary' && value < 0) return false; // cancel
+    },
+    afterEdit: ({ field, oldValue, newValue }) => {
+      console.log(`${field}: ${oldValue} -> ${newValue}`);
+    },
+    destroy: () => console.log('teardown'),
+  },
+};
+```
+
+---
+
+## Events
+
+The events API lets you observe table activity from outside the config callbacks.
+`on()` and `once()` both return an unsubscribe function.
+
+```js
+// Persistent subscription
+const unsub = table.on('cellEdit', ({ row, field, oldValue, newValue }) => {
+  console.log(`Row ${row}: ${field} changed from ${oldValue} to ${newValue}`);
+});
+
+// One-shot subscription (auto-removes after the first firing)
+table.once('rowAdd', ({ row, index }) => {
+  console.log('First row added at index', index, ':', row);
+});
+
+// Unsubscribe via the returned function
+unsub();
+
+// Or by reference
+const handler = ({ page }) => console.log('page', page);
+table.on('pageChange', handler);
+table.off('pageChange', handler);
+```
+
+### Event reference
+
+| Event | Payload | Fired by |
+|---|---|---|
+| `cellEdit` | `{ row, field, oldValue, newValue }` | `saveEdit()` / cell commit |
+| `selectionChange` | `{ selectedRows }` | `toggleRowSelection()` |
+| `sort` | `{ sortKeys }` | `sort()` / `multiSort()` |
+| `filter` | `{ filters }` | `setFilter()` / `clearFilters()` |
+| `pageChange` | `{ page }` | `goToPage()` / `nextPage()` / `prevPage()` |
+| `rowAdd` | `{ row, index }` | `addRow()` |
+| `rowUpdate` | `{ row, index, previous }` | `updateRow()` |
+| `rowDelete` | `{ row, index }` | `removeRow()` |
+
+Config callbacks (`onEdit`, `onSort`, etc.) still fire alongside events. A throwing handler is
+caught and logged; other handlers in the same event still run. See `examples/events-and-hooks.html`.
+
 ---
 
 ## TypeScript
 
-The package ships `src/tablecrafter.d.ts` with full generics. The `types` field in `package.json` points to it automatically, so no extra configuration is needed in most projects.
+The package ships `src/tablecrafter.d.ts`. The `types` field in `package.json` points to it automatically.
 
 ```ts
 import TableCrafter, { TableCrafterConfig, TableCrafterColumn } from 'tablecrafter';
@@ -313,34 +436,6 @@ export function DataTable({ data, onEdit }) {
 }
 ```
 
-### Vue 3
-
-```js
-import { onMounted, onBeforeUnmount, ref } from 'vue';
-import TableCrafter from 'tablecrafter';
-
-const el = ref(null);
-let table;
-onMounted(() => {
-  table = new TableCrafter(el.value, { data: props.rows, columns: [] });
-  table.render();
-});
-onBeforeUnmount(() => table?.destroy());
-```
-
-### Svelte
-
-```svelte
-<script>
-import TableCrafter from 'tablecrafter';
-import { onMount, onDestroy } from 'svelte';
-let el, table;
-onMount(() => { table = new TableCrafter(el, { data, columns }); table.render(); });
-onDestroy(() => table?.destroy());
-</script>
-<div bind:this={el}></div>
-```
-
 ---
 
 ## Export
@@ -352,15 +447,7 @@ table.downloadCSV();           // triggers browser download
 const json = table.exportToJSON();
 ```
 
-XLSX and PDF export require optional peer dependencies:
-
-```sh
-# XLSX (optional)
-npm install xlsx
-
-# PDF (optional)
-npm install jspdf jspdf-autotable
-```
+XLSX and PDF export require optional peer dependencies (install commands above under [Installation](#installation)).
 
 ---
 
@@ -373,7 +460,7 @@ npm install jspdf jspdf-autotable
 | `setData(rows)` | Replace all data |
 | `getData()` | Current (unfiltered) data |
 | `getFilteredData()` | Data after search/filter applied |
-| `addRow(row)` | Append a row (fires `onCreate`) |
+| `addRow(row)` | Append a row |
 | `updateRow(i, updates)` | Patch a row by index |
 | `removeRow(i)` | Delete a row by index |
 | `setFilter(field, value)` | Set a column filter |
@@ -387,18 +474,29 @@ npm install jspdf jspdf-autotable
 | `setCurrentUser(user)` | Set user context for permissions |
 | `hasPermission(action, row?)` | Check permission |
 | `use(plugin, opts?)` | Register a plugin |
-| `setLocale(locale)` | Switch i18n locale |
+| `unuse(name)` | Remove a plugin by name |
+| `setLocale(locale)` | Switch i18n locale at runtime |
+| `addMessages(locale, messages)` | Register or override i18n strings |
+| `on(event, handler)` | Subscribe to a named event; returns unsub function |
+| `off(event, handler)` | Unsubscribe a handler |
+| `once(event, handler)` | Subscribe for one emission; returns unsub function |
+| `enableVirtualScroll(opts?)` | Enable windowed rendering (`rowHeight`, `viewportHeight`, `overscan`) |
+| `disableVirtualScroll()` | Disable virtual scroll |
+| `isVirtualScrolling()` | Returns `true` when virtual scroll is active |
+| `getAggregates()` | Aggregated column values (sum / count / avg / min / max / distinct) |
 | `saveState()` | Persist current state |
 | `loadState()` | Restore persisted state |
-
-Callbacks configured in the constructor (`onEdit`, `onSort`, `onFilter`, `onDelete`, `onCreate`, `onPageChange`, `onRowSelect`, `onExport`) fire when the corresponding events occur.
+| `snapshotHTML(opts?)` | Deterministic HTML snapshot for testing (`scope: 'table'|'wrapper'`) |
+| `TableCrafter.bootstrap(scope?)` | Auto-init from `[data-tc-bootstrap]` elements; returns `Map` |
+| `TableCrafter.getBrowserSupport()` | Capability probe returning `{ intl, resizeObserver, requiredFeaturesAvailable, ... }` |
+| `TableCrafter.minimumBrowserSupportNotice()` | Human-readable string listing minimum requirements |
 
 ---
 
 ## Testing
 
 ```bash
-npm test           # run Jest suite (808 tests)
+npm test           # run Jest suite
 npm run test:watch
 npm run test:coverage
 ```
