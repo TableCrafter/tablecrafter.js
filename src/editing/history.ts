@@ -4,7 +4,8 @@
  * Undo / redo stack for cell edits, row additions, and bulk-fill operations.
  * The history is stored as a list of Action pairs (do / undo) so the store
  * can replay them without diffing the full state.
- * Phase 0: typed stub.
+ *
+ * All functions are pure; no DOM access.
  */
 
 import type { Action } from '../core/types';
@@ -26,38 +27,87 @@ export interface EditHistory {
 }
 
 /**
+ * Maximum number of undo steps to retain.
+ * Matches the v2 HISTORY_CAP constant in core/state.ts.
+ */
+export const HISTORY_CAP = 100;
+
+/**
  * Create an empty EditHistory.
  */
 export function createHistory(): EditHistory {
-  throw new Error('createHistory: not implemented -- Phase 2');
+  return { past: [], future: [] };
 }
 
 /**
  * Push a new entry onto the past stack, clearing the future stack.
+ * Enforces HISTORY_CAP by dropping the oldest entry when exceeded.
+ * Returns a new EditHistory (the input is not mutated).
  */
 export function pushHistory(
-  _history: EditHistory,
-  _entry: HistoryEntry
+  history: EditHistory,
+  entry: HistoryEntry
 ): EditHistory {
-  throw new Error('pushHistory: not implemented -- Phase 2');
+  const past = [...history.past, entry];
+  if (past.length > HISTORY_CAP) {
+    past.shift();
+  }
+  return { past, future: [] };
 }
 
 /**
  * Pop the most recent past entry and move it to the future stack.
  * Returns the inverse action to dispatch, or null if history is empty.
+ * Returns a new EditHistory (the input is not mutated).
  */
 export function popUndo(
-  _history: EditHistory
+  history: EditHistory
 ): { history: EditHistory; action: Action | null } {
-  throw new Error('popUndo: not implemented -- Phase 2');
+  if (history.past.length === 0) {
+    return { history, action: null };
+  }
+
+  const past = [...history.past];
+  const entry = past.pop();
+
+  if (entry === undefined) {
+    return { history, action: null };
+  }
+
+  const future = [entry, ...history.future];
+
+  return {
+    history: { past, future },
+    action: entry.inverse,
+  };
 }
 
 /**
  * Pop the most recent future entry and move it to the past stack.
  * Returns the redo action to dispatch, or null if future is empty.
+ * Returns a new EditHistory (the input is not mutated).
  */
 export function popRedo(
-  _history: EditHistory
+  history: EditHistory
 ): { history: EditHistory; action: Action | null } {
-  throw new Error('popRedo: not implemented -- Phase 2');
+  if (history.future.length === 0) {
+    return { history, action: null };
+  }
+
+  const future = [...history.future];
+  const entry = future.shift();
+
+  if (entry === undefined) {
+    return { history, action: null };
+  }
+
+  const past = [...history.past, entry];
+  if (past.length > HISTORY_CAP) {
+    past.shift();
+  }
+
+  return {
+    history: { past, future },
+    action: entry.action,
+  };
 }
