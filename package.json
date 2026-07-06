@@ -178,6 +178,11 @@
       "path": "dist/v3/export/pdf.mjs",
       "limit": "2 KB",
       "gzip": true
+    },
+    {
+      "path": "dist/v3/tablecrafter.global.js",
+      "limit": "30 KB",
+      "gzip": true
     }
   ],
   "keywords": [

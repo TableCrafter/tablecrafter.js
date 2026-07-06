@@ -94,8 +94,8 @@ export function applyAriaGrid(
     }
   });
 
-  // --- <tbody> <tr> elements ---
-  table.querySelectorAll('tbody tr').forEach((tr, i) => {
+  // Skip virtual-scroll spacer rows; only data rows receive aria-rowindex.
+  table.querySelectorAll('tbody tr:not(.tc-vs-top-spacer):not(.tc-vs-bottom-spacer)').forEach((tr, i) => {
     setAttr(tr, 'role', 'row');
     setAttr(tr, 'aria-rowindex', String(vsOffset + i + 2));
     const rowId = (tr as HTMLElement).dataset['rowId'];
