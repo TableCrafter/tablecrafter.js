@@ -7,7 +7,9 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  # Existing v2 Jest test suite (must stay green)
+  test-v2:
+    name: v2 Jest tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,3 +24,80 @@ jobs:
       - run: npm test
 
       - run: npm run build
+
+  # v3 TypeScript typecheck
+  typecheck-v3:
+    name: v3 TypeScript typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+  # v3 Vitest unit tests
+  test-v3:
+    name: v3 Vitest tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run test:v3
+
+  # v3 build (produces dist/v3/ entries)
+  build-v3:
+    name: v3 build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run build:v3
+
+      - name: Upload v3 dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-v3
+          path: dist/v3/
+
+  # v3 size-limit check (runs after build to have dist/v3/ artifacts)
+  size-v3:
+    name: v3 size-limit
+    runs-on: ubuntu-latest
+    needs: build-v3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Download v3 dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-v3
+          path: dist/v3/
+
+      - run: npm run size

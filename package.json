@@ -13,6 +13,107 @@
       "require": "./dist/tablecrafter.cjs.js",
       "types": "./src/tablecrafter.d.ts"
     },
+    "./core": {
+      "import": "./dist/v3/core/index.mjs",
+      "types": "./dist/v3/core/state.d.ts"
+    },
+    "./sorting": {
+      "import": "./dist/v3/sorting/index.mjs",
+      "types": "./dist/v3/sorting/index.d.ts"
+    },
+    "./filtering": {
+      "import": "./dist/v3/filtering/index.mjs",
+      "types": "./dist/v3/filtering/index.d.ts"
+    },
+    "./filtering/grammar": {
+      "import": "./dist/v3/filtering/grammar.mjs",
+      "types": "./dist/v3/filtering/grammar.d.ts"
+    },
+    "./filtering/fuzzy": {
+      "import": "./dist/v3/filtering/fuzzy.mjs",
+      "types": "./dist/v3/filtering/fuzzy.d.ts"
+    },
+    "./editing": {
+      "import": "./dist/v3/editing/index.mjs",
+      "types": "./dist/v3/editing/index.d.ts"
+    },
+    "./editing/history": {
+      "import": "./dist/v3/editing/history.mjs",
+      "types": "./dist/v3/editing/history.d.ts"
+    },
+    "./validation": {
+      "import": "./dist/v3/validation/index.mjs",
+      "types": "./dist/v3/validation/index.d.ts"
+    },
+    "./permissions": {
+      "import": "./dist/v3/permissions/index.mjs",
+      "types": "./dist/v3/permissions/index.d.ts"
+    },
+    "./i18n": {
+      "import": "./dist/v3/i18n/index.mjs",
+      "types": "./dist/v3/i18n/index.d.ts"
+    },
+    "./export/csv": {
+      "import": "./dist/v3/export/csv.mjs",
+      "types": "./dist/v3/export/csv.d.ts"
+    },
+    "./export/json": {
+      "import": "./dist/v3/export/json.mjs",
+      "types": "./dist/v3/export/json.d.ts"
+    },
+    "./export/print": {
+      "import": "./dist/v3/export/print.mjs",
+      "types": "./dist/v3/export/print.d.ts"
+    },
+    "./export/xlsx": {
+      "import": "./dist/v3/export/xlsx.mjs",
+      "types": "./dist/v3/export/xlsx.d.ts"
+    },
+    "./export/pdf": {
+      "import": "./dist/v3/export/pdf.mjs",
+      "types": "./dist/v3/export/pdf.d.ts"
+    },
+    "./render": {
+      "import": "./dist/v3/render/dom.mjs",
+      "types": "./dist/v3/render/dom.d.ts"
+    },
+    "./render/virtual": {
+      "import": "./dist/v3/render/virtual.mjs",
+      "types": "./dist/v3/render/virtual.d.ts"
+    },
+    "./render/a11y": {
+      "import": "./dist/v3/render/a11y.mjs",
+      "types": "./dist/v3/render/a11y.d.ts"
+    },
+    "./cells": {
+      "import": "./dist/v3/cells/index.mjs",
+      "types": "./dist/v3/cells/index.d.ts"
+    },
+    "./adapters/inline": {
+      "import": "./dist/v3/adapters/inline.mjs",
+      "types": "./dist/v3/adapters/inline.d.ts"
+    },
+    "./adapters/json": {
+      "import": "./dist/v3/adapters/json.mjs",
+      "types": "./dist/v3/adapters/json.d.ts"
+    },
+    "./adapters/csv": {
+      "import": "./dist/v3/adapters/csv.mjs",
+      "types": "./dist/v3/adapters/csv.d.ts"
+    },
+    "./adapters/google-sheets": {
+      "import": "./dist/v3/adapters/google-sheets.mjs",
+      "types": "./dist/v3/adapters/google-sheets.d.ts"
+    },
+    "./adapters/xml": {
+      "import": "./dist/v3/adapters/xml.mjs",
+      "types": "./dist/v3/adapters/xml.d.ts"
+    },
+    "./adapters/pagination-link": {
+      "import": "./dist/v3/adapters/pagination-link.mjs",
+      "types": "./dist/v3/adapters/pagination-link.d.ts"
+    },
+    "./styles.css": "./dist/v3/styles.css",
     "./dist/tablecrafter.css": "./dist/tablecrafter.css"
   },
   "files": [
@@ -21,15 +122,59 @@
     "src/tablecrafter.css",
     "src/tablecrafter.d.ts"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "*.css"
+  ],
   "scripts": {
     "build": "rollup -c rollup.config.mjs && node scripts/copy-css.js",
     "build:watch": "rollup -c rollup.config.mjs --watch",
+    "build:v3": "vite build --config vite.v3.config.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:v3": "vitest run --config vitest.config.ts",
+    "test:v3:watch": "vitest --config vitest.config.ts",
+    "typecheck": "tsc --project tsconfig.v3.json",
+    "size": "size-limit",
     "prepublishOnly": "npm run build && npm test"
   },
+  "size-limit": [
+    {
+      "path": "dist/v3/core/index.mjs",
+      "limit": "8 KB",
+      "gzip": true
+    },
+    {
+      "path": "dist/v3/index.mjs",
+      "limit": "30 KB",
+      "gzip": true
+    },
+    {
+      "path": "dist/v3/sorting/index.mjs",
+      "limit": "1 KB",
+      "gzip": true
+    },
+    {
+      "path": "dist/v3/filtering/index.mjs",
+      "limit": "3 KB",
+      "gzip": true
+    },
+    {
+      "path": "dist/v3/export/csv.mjs",
+      "limit": "2 KB",
+      "gzip": true
+    },
+    {
+      "path": "dist/v3/export/xlsx.mjs",
+      "limit": "2 KB",
+      "gzip": true
+    },
+    {
+      "path": "dist/v3/export/pdf.mjs",
+      "limit": "2 KB",
+      "gzip": true
+    }
+  ],
   "keywords": [
     "data-table",
     "table",
@@ -51,18 +196,31 @@
     "xlsx": ">=0.17.0"
   },
   "peerDependenciesMeta": {
-    "jspdf": { "optional": true },
-    "jspdf-autotable": { "optional": true },
-    "xlsx": { "optional": true }
+    "jspdf": {
+      "optional": true
+    },
+    "jspdf-autotable": {
+      "optional": true
+    },
+    "xlsx": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.2",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-terser": "^1.0.0",
+    "@size-limit/file": "^11.2.0",
     "@testing-library/jest-dom": "^6.8.0",
+    "@vitest/coverage-v8": "^2.1.9",
     "jest": "^30.1.3",
     "jest-environment-jsdom": "^30.2.0",
     "jsdom": "^27.0.0",
-    "rollup": "^4.60.2"
+    "rollup": "^4.60.2",
+    "size-limit": "^11.2.0",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^2.1.9"
   }
 }
