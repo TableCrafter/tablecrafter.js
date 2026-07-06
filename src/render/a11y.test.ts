@@ -660,3 +660,58 @@ describe('preserveFocusThroughPatch', () => {
     expect(ran).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// applyAriaGrid – spacer row exclusion
+// ---------------------------------------------------------------------------
+
+describe('applyAriaGrid – spacer row exclusion', () => {
+  it('does not assign aria-rowindex to virtual-scroll spacer rows', () => {
+    const table = makeTable(3, 3);
+    const tbody = table.querySelector('tbody')!;
+
+    // Inject spacer <tr> elements as virtual scroll does
+    const topSpacer = document.createElement('tr');
+    topSpacer.className = 'tc-vs-top-spacer';
+    topSpacer.style.height = '200px';
+    tbody.prepend(topSpacer);
+
+    const bottomSpacer = document.createElement('tr');
+    bottomSpacer.className = 'tc-vs-bottom-spacer';
+    bottomSpacer.style.height = '400px';
+    tbody.append(bottomSpacer);
+
+    const state = makeState({ totalRows: 3, rows: [{}, {}, {}], displayRows: [{}, {}, {}] });
+    applyAriaGrid(table, state, makeColumns(3), 5);
+
+    expect(topSpacer.hasAttribute('aria-rowindex')).toBe(false);
+    expect(bottomSpacer.hasAttribute('aria-rowindex')).toBe(false);
+
+    table.remove();
+  });
+
+  it('assigns correct aria-rowindex to data rows when spacers are present', () => {
+    const table = makeTable(3, 3);
+    const tbody = table.querySelector('tbody')!;
+
+    const topSpacer = document.createElement('tr');
+    topSpacer.className = 'tc-vs-top-spacer';
+    tbody.prepend(topSpacer);
+    const bottomSpacer = document.createElement('tr');
+    bottomSpacer.className = 'tc-vs-bottom-spacer';
+    tbody.append(bottomSpacer);
+
+    const rows = [{}, {}, {}];
+    const state = makeState({ totalRows: 10, rows, displayRows: rows });
+    applyAriaGrid(table, state, makeColumns(3), 5); // vsOffset = 5
+
+    const dataRows = Array.from(
+      tbody.querySelectorAll('tr:not(.tc-vs-top-spacer):not(.tc-vs-bottom-spacer)')
+    );
+    expect(dataRows[0]?.getAttribute('aria-rowindex')).toBe('7');  // 5+0+2
+    expect(dataRows[1]?.getAttribute('aria-rowindex')).toBe('8');  // 5+1+2
+    expect(dataRows[2]?.getAttribute('aria-rowindex')).toBe('9');  // 5+2+2
+
+    table.remove();
+  });
+});
