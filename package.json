@@ -45,6 +45,16 @@
   "author": "Fahad Murtaza",
   "license": "MIT",
   "type": "commonjs",
+  "peerDependencies": {
+    "jspdf": ">=2.5.0",
+    "jspdf-autotable": ">=3.5.0",
+    "xlsx": ">=0.17.0"
+  },
+  "peerDependenciesMeta": {
+    "jspdf": { "optional": true },
+    "jspdf-autotable": { "optional": true },
+    "xlsx": { "optional": true }
+  },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.2",
     "@rollup/plugin-node-resolve": "^16.0.3",

@@ -66,6 +66,20 @@ describe('exportData(format)', () => {
     await expect(table.exportData('pdf')).rejects.toThrow(/pdf|not available|not yet/i);
   });
 
+  test('exportData("xlsx") rejects with exact peer-dep install message', async () => {
+    const table = makeTable();
+    await expect(table.exportData('xlsx')).rejects.toThrow(
+      'xlsx not available — install the xlsx peer dep'
+    );
+  });
+
+  test('exportData("pdf") rejects with exact peer-dep install message', async () => {
+    const table = makeTable();
+    await expect(table.exportData('pdf')).rejects.toThrow(
+      'pdf not available — install jspdf + jspdf-autotable peer deps'
+    );
+  });
+
   test('exportData fires onExport callback for json format', async () => {
     const onExport = jest.fn();
     const table = makeTable({ onExport });
