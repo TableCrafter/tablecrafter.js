@@ -518,3 +518,206 @@ describe('update() imperative refresh', () => {
 
 // Keep vi import referenced (used implicitly by environment); silence lints.
 void vi;
+
+// ---------------------------------------------------------------------------
+// #330: search highlighting
+// ---------------------------------------------------------------------------
+
+describe('search highlighting — plain term', () => {
+  it('wraps matched substring in <mark class="tc-highlight"> on a plain query', () => {
+    const store = makeStore();
+    const r = mountTable(store, host, { columns: COLUMNS });
+    store.search('Ali');
+    // Only Alice's row is shown; check name cell
+    const nameCell = host.querySelector('tbody tr td[data-col="name"]') as HTMLElement;
+    expect(nameCell).not.toBeNull();
+    const mark = nameCell.querySelector('mark.tc-highlight');
+    expect(mark).not.toBeNull();
+    // The highlighted text should be the matched portion (case-insensitive)
+    expect(mark!.textContent).toMatch(/ali/i);
+    r.destroy();
+  });
+
+  it('XSS attempt in cell data is escaped inside mark wrapping', () => {
+    const xssData = [{ id: 1, name: '<script>alert(1)</script>', age: 30 }];
+    const store = makeStore({ data: xssData });
+    const r = mountTable(store, host, { columns: COLUMNS });
+    store.search('script');
+    const nameCell = host.querySelector('tbody tr td[data-col="name"]') as HTMLElement;
+    // The <script> should NOT be injected as real DOM
+    expect(nameCell.querySelector('script')).toBeNull();
+    // But the text content of the cell should include the literal angle-bracket text
+    expect(nameCell.textContent).toContain('<script>');
+    // A mark element should exist with the matched text
+    const mark = nameCell.querySelector('mark.tc-highlight');
+    expect(mark).not.toBeNull();
+    r.destroy();
+  });
+
+  it('clears highlight marks when search is cleared', () => {
+    const store = makeStore();
+    const r = mountTable(store, host, { columns: COLUMNS });
+    store.search('Charlie');
+    // Verify mark exists
+    const nameCell = () => host.querySelector('tbody tr td[data-col="name"]') as HTMLElement;
+    expect(nameCell().querySelector('mark.tc-highlight')).not.toBeNull();
+    // Clear search
+    store.search('');
+    expect(nameCell().querySelector('mark.tc-highlight')).toBeNull();
+    r.destroy();
+  });
+});
+
+describe('search highlighting — grammar field:value query', () => {
+  it('highlights only the value portion in the matching column', () => {
+    const store = makeStore();
+    // fuzzy: true wires the grammar engine as parser, which understands field:value syntax
+    const r = mountTable(store, host, { columns: COLUMNS, fuzzy: true });
+    // Grammar field query: name:Alice — shows only Alice's row
+    store.search('name:Alice');
+    const nameCell = host.querySelector('tbody tr td[data-col="name"]') as HTMLElement;
+    const ageCell = host.querySelector('tbody tr td[data-col="age"]') as HTMLElement;
+    expect(nameCell).not.toBeNull();
+    expect(ageCell).not.toBeNull();
+    // Name cell should have a mark (field matches)
+    expect(nameCell.querySelector('mark.tc-highlight')).not.toBeNull();
+    // Age cell should NOT have a mark (different field)
+    expect(ageCell.querySelector('mark.tc-highlight')).toBeNull();
+    r.destroy();
+  });
+});
+
+describe('search highlighting — fuzzy opt-in engine wiring', () => {
+  it('wires createFuzzyEngine when fuzzy: true is passed', () => {
+    const store = makeStore();
+    // Spy on setSearchEngine if available
+    const setSearchEngineSpy = vi.fn();
+    const extended = store as unknown as Record<string, unknown>;
+    const original = extended['setSearchEngine'];
+    extended['setSearchEngine'] = setSearchEngineSpy;
+
+    const r = mountTable(store, host, { columns: COLUMNS, fuzzy: true });
+    expect(setSearchEngineSpy).toHaveBeenCalledTimes(1);
+    // Restore
+    extended['setSearchEngine'] = original;
+    r.destroy();
+  });
+
+  it('does not wire a fuzzy engine when fuzzy is omitted', () => {
+    const store = makeStore();
+    const setSearchEngineSpy = vi.fn();
+    const extended = store as unknown as Record<string, unknown>;
+    const original = extended['setSearchEngine'];
+    extended['setSearchEngine'] = setSearchEngineSpy;
+
+    const r = mountTable(store, host, { columns: COLUMNS });
+    expect(setSearchEngineSpy).not.toHaveBeenCalled();
+    extended['setSearchEngine'] = original;
+    r.destroy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #329: pagination UI controls
+// ---------------------------------------------------------------------------
+
+describe('pagination — page-size selector', () => {
+  it('renders a page-size select with default sizes [10, 25, 50, 100]', () => {
+    const manyRows = Array.from({ length: 30 }, (_, i) => ({ id: i + 1, name: `Row${i + 1}`, age: i }));
+    const store = makeStore({ data: manyRows, pageSize: 10 });
+    const r = mountTable(store, host, { columns: COLUMNS });
+    const sizeSelect = host.querySelector('.tc-page-size-select') as HTMLSelectElement;
+    expect(sizeSelect).not.toBeNull();
+    const optionValues = Array.from(sizeSelect.options).map((o) => Number(o.value));
+    expect(optionValues).toContain(10);
+    expect(optionValues).toContain(25);
+    expect(optionValues).toContain(50);
+    expect(optionValues).toContain(100);
+    r.destroy();
+  });
+
+  it('reflects the current pageSize as selected option', () => {
+    const manyRows = Array.from({ length: 30 }, (_, i) => ({ id: i + 1, name: `Row${i + 1}`, age: i }));
+    const store = makeStore({ data: manyRows, pageSize: 25 });
+    const r = mountTable(store, host, { columns: COLUMNS });
+    const sizeSelect = host.querySelector('.tc-page-size-select') as HTMLSelectElement;
+    expect(sizeSelect.value).toBe('25');
+    r.destroy();
+  });
+
+  it('uses custom pageSizes option when provided', () => {
+    const manyRows = Array.from({ length: 30 }, (_, i) => ({ id: i + 1, name: `Row${i + 1}`, age: i }));
+    const store = makeStore({ data: manyRows, pageSize: 5 });
+    const r = mountTable(store, host, { columns: COLUMNS, pageSizes: [5, 20, 50] });
+    const sizeSelect = host.querySelector('.tc-page-size-select') as HTMLSelectElement;
+    const optionValues = Array.from(sizeSelect.options).map((o) => Number(o.value));
+    expect(optionValues).toContain(5);
+    expect(optionValues).toContain(20);
+    expect(optionValues).toContain(50);
+    r.destroy();
+  });
+
+  it('dispatches setPageSize when select changes', () => {
+    const manyRows = Array.from({ length: 30 }, (_, i) => ({ id: i + 1, name: `Row${i + 1}`, age: i }));
+    const store = makeStore({ data: manyRows, pageSize: 10 });
+    const r = mountTable(store, host, { columns: COLUMNS });
+    const sizeSelect = host.querySelector('.tc-page-size-select') as HTMLSelectElement;
+    sizeSelect.value = '25';
+    sizeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(store.getState().pageSize).toBe(25);
+    r.destroy();
+  });
+});
+
+describe('pagination — jump-to-page input', () => {
+  it('renders a numeric jump-to-page input', () => {
+    const manyRows = Array.from({ length: 30 }, (_, i) => ({ id: i + 1, name: `Row${i + 1}`, age: i }));
+    const store = makeStore({ data: manyRows, pageSize: 10 });
+    const r = mountTable(store, host, { columns: COLUMNS });
+    const jumpInput = host.querySelector('.tc-page-jump') as HTMLInputElement;
+    expect(jumpInput).not.toBeNull();
+    expect(jumpInput.type).toBe('number');
+    r.destroy();
+  });
+
+  it('reflects the current page value', () => {
+    const manyRows = Array.from({ length: 30 }, (_, i) => ({ id: i + 1, name: `Row${i + 1}`, age: i }));
+    const store = makeStore({ data: manyRows, pageSize: 10 });
+    const r = mountTable(store, host, { columns: COLUMNS });
+    const jumpInput = host.querySelector('.tc-page-jump') as HTMLInputElement;
+    expect(jumpInput.value).toBe('1');
+    r.destroy();
+  });
+
+  it('dispatches setPage on Enter keydown with clamping', () => {
+    const manyRows = Array.from({ length: 30 }, (_, i) => ({ id: i + 1, name: `Row${i + 1}`, age: i }));
+    const store = makeStore({ data: manyRows, pageSize: 10 });
+    const r = mountTable(store, host, { columns: COLUMNS });
+    const jumpInput = host.querySelector('.tc-page-jump') as HTMLInputElement;
+    jumpInput.value = '999'; // far beyond totalPages = 3
+    jumpInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    // Should clamp to max page (30 rows / 10 per page = 3 pages)
+    expect(store.getState().page).toBe(3);
+    r.destroy();
+  });
+
+  it('clamps jump-to-page below 1', () => {
+    const manyRows = Array.from({ length: 30 }, (_, i) => ({ id: i + 1, name: `Row${i + 1}`, age: i }));
+    const store = makeStore({ data: manyRows, pageSize: 10 });
+    const r = mountTable(store, host, { columns: COLUMNS });
+    const jumpInput = host.querySelector('.tc-page-jump') as HTMLInputElement;
+    jumpInput.value = '-5';
+    jumpInput.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(store.getState().page).toBe(1);
+    r.destroy();
+  });
+
+  it('has an aria-label for accessibility', () => {
+    const manyRows = Array.from({ length: 30 }, (_, i) => ({ id: i + 1, name: `Row${i + 1}`, age: i }));
+    const store = makeStore({ data: manyRows, pageSize: 10 });
+    const r = mountTable(store, host, { columns: COLUMNS });
+    const jumpInput = host.querySelector('.tc-page-jump') as HTMLInputElement;
+    expect(jumpInput.getAttribute('aria-label')).not.toBeNull();
+    r.destroy();
+  });
+});

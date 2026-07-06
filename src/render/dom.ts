@@ -54,6 +54,8 @@ import { canViewCell, canEditCell } from '../permissions/index';
 import { getSortBadges } from '../sorting/index';
 import { createI18n, detectLocale } from '../i18n/index';
 import type { I18nInstance } from '../i18n/index';
+import { fuzzyMatch, createFuzzyEngine } from '../filtering/fuzzy';
+import type { SearchEngine } from '../core/state';
 
 import {
   applyAriaGrid,
@@ -85,6 +87,8 @@ export interface UiStrings {
   tableLoaded: string; // "Table loaded, {n} rows"
   cellUpdated: string; // "{column} updated"
   clearFilter: string;
+  pageSize: string; // "Rows per page"
+  goToPage: string; // "Go to page"
 }
 
 const UI_STRINGS: UiStrings = {
@@ -104,6 +108,8 @@ const UI_STRINGS: UiStrings = {
   tableLoaded: 'Table loaded, {n} rows',
   cellUpdated: '{column} updated',
   clearFilter: 'Clear filter',
+  pageSize: 'Rows per page',
+  goToPage: 'Go to page',
 };
 
 /**
@@ -120,6 +126,17 @@ export interface DomRendererOptions extends RendererOptions {
   locale?: string | undefined;
   /** Per-mount UI string overrides. */
   strings?: Partial<UiStrings> | undefined;
+  /**
+   * When true, wires createFuzzyEngine as the active search engine on the store.
+   * This enables approximate-match searching (single bare terms) while delegating
+   * complex grammar queries to exact evaluation.
+   */
+  fuzzy?: boolean | undefined;
+  /**
+   * Page-size options shown in the rows-per-page selector.
+   * Defaults to [10, 25, 50, 100].
+   */
+  pageSizes?: number[] | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -231,6 +248,12 @@ export function mountTable(
   const { signal } = ac;
   const dispatch = (action: Action): void => store.dispatch(action);
 
+  // ---- Opt-in fuzzy search engine --------------------------------------
+  if (opts.fuzzy === true) {
+    const extStore = store as unknown as { setSearchEngine?: (e: SearchEngine) => void };
+    extStore.setSearchEngine?.(createFuzzyEngine());
+  }
+
   // ---- DOM skeleton -----------------------------------------------------
   const root = el('div', 'tc-root');
   root.dataset.theme = opts.theme ?? 'default';
@@ -301,6 +324,93 @@ export function mountTable(
     return String(value);
   }
 
+  // ---- search highlighting helpers -------------------------------------
+
+  /**
+   * Collect matched character indices for highlighting a cell value against a
+   * query AST.  Returns null when the node kind is too complex for highlighting
+   * (or/not/regex), or an empty array when there is no match in this column.
+   *
+   * The caller merges results from AND children; field nodes only contribute
+   * indices when their field key matches the column being rendered.
+   */
+  function collectHighlightIndices(
+    text: string,
+    node: import('../core/types').QueryNode,
+    colKey: string
+  ): number[] | null {
+    switch (node.kind) {
+      case 'term': {
+        const result = fuzzyMatch(node.value, text);
+        return result.indices;
+      }
+      case 'field': {
+        if (node.field !== colKey) return []; // different column — no highlight here
+        const result = fuzzyMatch(node.value, text);
+        return result.indices;
+      }
+      case 'and': {
+        const left = collectHighlightIndices(text, node.left, colKey);
+        const right = collectHighlightIndices(text, node.right, colKey);
+        if (left === null || right === null) return null;
+        return [...new Set([...left, ...right])].sort((a, b) => a - b);
+      }
+      case 'or':
+      case 'not':
+      case 'regex':
+        return null; // complex — skip highlighting
+    }
+  }
+
+  /**
+   * Apply search highlighting to a cell element via DOM nodes (no innerHTML of
+   * user data).  Matched runs are wrapped in <mark class="tc-highlight">;
+   * unmatched text becomes plain text nodes.  Returns true when at least one
+   * mark was inserted.
+   */
+  function applySearchHighlight(
+    td: HTMLElement,
+    text: string,
+    node: import('../core/types').QueryNode,
+    colKey: string
+  ): boolean {
+    const indices = collectHighlightIndices(text, node, colKey);
+    if (!indices || indices.length === 0) return false;
+
+    // Deduplicate and sort
+    const sorted = [...new Set(indices)].sort((a, b) => a - b);
+
+    // Build consecutive ranges
+    const ranges: Array<[number, number]> = [];
+    let k = 0;
+    while (k < sorted.length) {
+      const rangeStart = sorted[k]!;
+      let rangeEnd = rangeStart;
+      while (k + 1 < sorted.length && sorted[k + 1]! === rangeEnd + 1) {
+        rangeEnd = sorted[++k]!;
+      }
+      k++;
+      ranges.push([rangeStart, rangeEnd]);
+    }
+
+    // Emit text nodes + mark elements (no innerHTML of user content)
+    let pos = 0;
+    for (const [start, end] of ranges) {
+      if (pos < start) {
+        td.appendChild(document.createTextNode(text.slice(pos, start)));
+      }
+      const mark = document.createElement('mark');
+      mark.className = 'tc-highlight';
+      mark.textContent = text.slice(start, end + 1);
+      td.appendChild(mark);
+      pos = end + 1;
+    }
+    if (pos < text.length) {
+      td.appendChild(document.createTextNode(text.slice(pos)));
+    }
+    return true;
+  }
+
   function renderCellContent(
     td: HTMLElement,
     value: unknown,
@@ -312,12 +422,22 @@ export function mountTable(
     if (!fn && column.renderer) fn = registry.get(column.renderer);
     if (!fn && column.type) fn = registry.get(column.type);
     if (fn) {
+      // Custom renderers own their own output; no highlight overlay applied.
       const out = fn(value, row, column);
       if (typeof out === 'string') td.textContent = out;
       else td.appendChild(out);
-    } else {
-      td.textContent = formatValue(value, column.type);
+      return;
     }
+
+    const text = formatValue(value, column.type);
+    const ast = latestState?.searchAst ?? null;
+
+    if (ast !== null && text !== '') {
+      const highlighted = applySearchHighlight(td, text, ast, column.key);
+      if (highlighted) return;
+    }
+
+    td.textContent = text;
   }
 
   // ---- editing state ----------------------------------------------------
@@ -438,15 +558,49 @@ export function mountTable(
       return;
     }
     pagination.classList.remove('tc-hidden');
+
+    // Page-size selector
+    const defaultPageSizes = [10, 25, 50, 100];
+    const pageSizes = opts.pageSizes ?? defaultPageSizes;
+    // Include current pageSize in the list when absent, sorted ascending
+    const sizeList = pageSizes.includes(state.pageSize)
+      ? pageSizes
+      : [...pageSizes, state.pageSize].sort((a, b) => a - b);
+    const sizeSelect = el('select', 'tc-page-size-select', {
+      'aria-label': strings.pageSize,
+    });
+    for (const size of sizeList) {
+      const opt = el('option');
+      opt.value = String(size);
+      opt.textContent = String(size);
+      if (size === state.pageSize) opt.selected = true;
+      sizeSelect.appendChild(opt);
+    }
+
+    // Prev button
     const prev = el('button', 'tc-page-prev', { type: 'button' });
     prev.textContent = strings.previous;
     prev.disabled = state.page <= 1;
+
+    // Page info
     const info = el('span', 'tc-page-info');
     info.textContent = fmt(strings.pageOf, { current: state.page, total: state.pageCount });
+
+    // Next button
     const next = el('button', 'tc-page-next', { type: 'button' });
     next.textContent = strings.next;
     next.disabled = state.page >= state.pageCount;
-    pagination.append(prev, info, next);
+
+    // Jump-to-page input
+    const jumpInput = el('input', 'tc-page-jump', {
+      type: 'number',
+      min: '1',
+      max: String(state.pageCount),
+      value: String(state.page),
+      'aria-label': strings.goToPage,
+    });
+
+    pagination.append(sizeSelect, prev, info, next, jumpInput);
   }
 
   // ---- filter summary + search sync -------------------------------------
@@ -728,7 +882,10 @@ export function mountTable(
     }
 
     const rowsChanged = !sameRows(next.displayRows, prev.displayRows);
-    if (rowsChanged) {
+    // Also rebuild when the search query changes to apply or clear highlights, even
+    // if the displayRows set happens to contain the same row references.
+    const searchChanged = next.searchQuery !== prev.searchQuery;
+    if (rowsChanged || searchChanged) {
       rebuild(next);
     } else if (next.editingCell !== prev.editingCell) {
       patchEditing(next, prev);
@@ -1006,6 +1163,37 @@ export function mountTable(
   );
 
   searchInput.addEventListener('input', () => store.search(searchInput.value), { signal });
+
+  // ---- pagination control events (change + Enter on jump input) ---------
+  pagination.addEventListener(
+    'change',
+    (ev) => {
+      const target = ev.target as HTMLElement;
+      if (target.classList.contains('tc-page-size-select')) {
+        store.setPageSize(parseInt((target as HTMLSelectElement).value, 10));
+      } else if (target.classList.contains('tc-page-jump')) {
+        const v = parseInt((target as HTMLInputElement).value, 10);
+        const total = latestState?.pageCount ?? 1;
+        store.setPage(Math.max(1, Math.min(Number.isNaN(v) ? 1 : v, total)));
+      }
+    },
+    { signal }
+  );
+
+  pagination.addEventListener(
+    'keydown',
+    (ev) => {
+      const ke = ev as KeyboardEvent;
+      const target = ke.target as HTMLElement;
+      if (target.classList.contains('tc-page-jump') && ke.key === 'Enter') {
+        ke.preventDefault();
+        const v = parseInt((target as HTMLInputElement).value, 10);
+        const total = latestState?.pageCount ?? 1;
+        store.setPage(Math.max(1, Math.min(Number.isNaN(v) ? 1 : v, total)));
+      }
+    },
+    { signal }
+  );
 
   root.addEventListener(
     'contextmenu',

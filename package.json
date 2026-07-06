@@ -152,7 +152,7 @@
     },
     {
       "path": "dist/v3/render/dom.mjs",
-      "limit": "7 KB",
+      "limit": "8 KB",
       "gzip": true
     },
     {
