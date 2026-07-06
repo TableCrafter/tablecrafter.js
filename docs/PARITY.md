@@ -2,7 +2,7 @@ Maintained jointly with the plugin repo copy at TableCrafter/tablecrafter-pro/do
 
 # TableCrafter Parity Matrix
 
-**Scope:** feature parity between the TableCrafter WordPress plugin (v8.0.40) and the TableCrafter.js standalone library (v2.0.0, last commit 2026-04-29). Bidirectional: each side should offer the other's client-side capabilities where they make sense outside/inside WordPress.
+**Scope:** feature parity between the TableCrafter WordPress plugin (v8.0.40) and the TableCrafter.js standalone library. Library column reflects v3 architecture (PRs #351-#373) for rows verified in the July 2026 closure pass; rows not yet re-verified still reflect v2.0.0 (last commit 2026-04-29). Bidirectional: each side should offer the other's client-side capabilities where they make sense outside/inside WordPress.
 
 **Legend:** OK = at parity. GAP-JS = plugin has it, library lacks it. GAP-WP = library has it, plugin lacks it. N/A = deliberately out of scope for that side. Tier notes (Free/Pro) describe the plugin.
 
@@ -19,10 +19,10 @@ These are NOT parity gaps and will not get issues:
 | Capability | Plugin 8.0.40 | Library 2.0.0 | Verdict |
 |---|---|---|---|
 | Inline data | via saved table config | `data: [...]` | OK |
-| JSON/REST URL | Free; streaming; RFC-5988 pagination | fetch + `root` path; no link-header pagination | GAP-JS (pagination follow) |
-| CSV | Free; file or URL; dialect auto-detect | RFC-4180 parser; manual import only, no URL fetch | GAP-JS (CSV by URL) |
-| Google Sheets (public) | Free | none | GAP-JS |
-| XML | Pro | none | GAP-JS |
+| JSON/REST URL | Free; streaming; RFC-5988 pagination | fetch + `root` path; `adapters/pagination-link.ts` follows `rel="next"` Link headers (RFC-5988/8288, 100-page cap) | OK |
+| CSV | Free; file or URL; dialect auto-detect | RFC-4180 parser; `adapters/csv.ts` `createCsvAdapter` fetches by URL | OK |
+| Google Sheets (public) | Free | `adapters/google-sheets.ts` `createGoogleSheetsAdapter` (gviz CSV endpoint; public sheets only) | OK |
+| XML | Pro | `adapters/xml.ts` `createXmlAdapter` (regex extractor, no DOMParser dependency) | OK |
 | Excel read | Free (server-side PhpSpreadsheet) | N/A client-side read (xlsx peer dep is export-only) | N/A |
 | Airtable / Notion / External DB / GF / WooCommerce | Pro; server-side, encrypted credentials | N/A in-browser (credential exposure); server-proxy recipe instead | N/A + doc |
 | Write-back | Pro push engines (JSON/Airtable/Notion/GF/WC status) | REST create/update/delete via `api.*` | OK (shape differs) |
@@ -37,15 +37,15 @@ These are NOT parity gaps and will not get issues:
 | Per-column filters | text, dropdown, multi-select, date-range + presets, numeric range, checkbox AND/OR | text, multiselect, date range, number range; auto-detection | OK (presets minor) |
 | Saved filter presets | Free (per-user) | API only, no UI | GAP-JS (UI) |
 | URL-parameter pre-filter | Free (`?gt_col_x=`) | none | GAP-JS |
-| Sticky headers | Free (CSS native) | none | GAP-JS |
+| Sticky headers | Free (CSS native) | SOLID (`dom.css` `.tc-th { position:sticky; top:0; z-index:2 }`) | OK |
 | Column pinning (sticky columns) | none | class-only implementation (no CSS sticky shipped) | GAP-WP + finish in JS |
 | Column resize | Free | none | GAP-JS |
 | Column reorder / visibility | Free (drag-drop + picker) | SOLID (programmatic + config) | OK |
 | Responsive card view | Free (768/480 breakpoints) | SOLID (breakpoints, expandable sections) | OK |
-| Conditional formatting rules | Free (equals/contains/gt/lt/empty -> color/bold/class) | dataBar/colorScale/icon; no rule->style engine | GAP-JS (rules engine) |
+| Conditional formatting rules | Free (equals/contains/gt/lt/empty -> color/bold/class) | SOLID (`cells/conditional.ts`: evalRule + matchingRules + renderConditional; dataBar/colorScale/icon kinds; registered in cells/registry.ts) | OK |
 | Status badges | Free | SOLID (badge cell type) | OK |
 | Data bars / gradient / bipolar | Pro | dataBar + colorScale | OK (sub-options partial) |
-| Star rating cell | Free | none | GAP-JS |
+| Star rating cell | Free | SOLID (`cells/star.ts` renderStar + starDescriptor; configurable total; registered in cells/registry.ts) | OK |
 | Sparkline cell | Pro (Data Bars sub-option) | SOLID standalone | GAP-WP (standalone cell type) |
 | Formula columns | wired: save in class-tc-admin.php:1374, augment in class-tc-ajax.php:2479, builder UI in table-builder.php:2000 | SOLID (arithmetic + function library) | GAP-WP (function library breadth; verify per issue) |
 | Totals/aggregation row | Free (incl. count-distinct) | SOLID except `distinct` unimplemented | GAP-JS (distinct) |
@@ -54,12 +54,12 @@ These are NOT parity gaps and will not get issues:
 | Row grouping / cell merge / pivot | orphaned or partially wired services | none | PARKED both sides (plugin must wire first) |
 | Auto-refresh + last-updated | Free | none | GAP-JS |
 | Skeleton loader | Free | none | GAP-JS |
-| Virtual scrolling / DOM windowing | Free (v8.0.18) | API exists, never consulted by renderer (stub) | GAP-JS (wire it) |
+| Virtual scrolling / DOM windowing | Free (v8.0.18) | SOLID (`dom.ts` `maybeMountVirtual` wires `mountVirtualScroll`; opt-in via `virtual:true`) | OK |
 | Cell range selection + copy TSV | none | partial: selectRange/copySelectionAsTSV API real, no shift-click/drag DOM wiring | GAP-WP + finish DOM wiring in JS (#206) |
-| Context menu (right-click) | none | partial: openContextMenu API with ARIA, no trigger binding, positioning, or keyboard nav | GAP-WP + finish trigger/positioning in JS (#44) |
+| Context menu (right-click) | none | SOLID (`dom.ts`: right-click trigger, Popover API positioning + fallback, keyboard nav; Edit/Duplicate/Delete items) | GAP-WP |
 | RTL | Free | SOLID (locale-driven) | OK |
 | Custom CSS/theming | Free (per-table CSS, presets) | CSS custom properties + theme attr; no shipped named themes | GAP-JS (ship 2-3 named themes) |
-| Accessibility | WCAG 2.1 AA pass | good ARIA; no aria-live regions | GAP-JS (aria-live) |
+| Accessibility | WCAG 2.1 AA pass | SOLID (aria-live polite region `render/a11y.ts` `createLiveRegion` wired in `dom.ts`; ARIA grid pattern: role/rowindex/colindex/selected/sort) | OK |
 
 ## 3. Editing
 
@@ -67,15 +67,15 @@ These are NOT parity gaps and will not get issues:
 |---|---|---|---|
 | Inline editing | Pro: text, textarea, select, date, toggle, lookup | SOLID: 14 types + lookup + custom registry | GAP-WP (number, email, url, datetime, multiselect, checkbox, color, range) |
 | Validation | Pro: required, length, min/max, regex | SOLID: those + unique, oneOf/notOneOf, phone, date bounds, custom fn | GAP-WP (unique, oneOf, custom fn) |
-| Keyboard spreadsheet nav | Pro | partial (sort keys, edit Enter/Esc; no arrow-grid nav) | GAP-JS (arrow-key grid nav) |
-| Undo/redo | Pro (+ toast) | none | GAP-JS |
+| Keyboard spreadsheet nav | Pro | SOLID (`render/a11y.ts` `mountRovingTabindex`: arrows, Home/End/PageUp/PageDown, Enter/F2/Escape/Space; wired in `dom.ts`) | OK |
+| Undo/redo | Pro (+ toast) | history stack in `core/state.ts` + `store.undo()`/`redo()` + wrapper proxy; no visual toast | GAP-JS (toast only) |
 | Add row (modal) | Pro | SOLID | OK |
-| Duplicate row (+ field locking) | Pro | none | GAP-JS |
+| Duplicate row (+ field locking) | Pro | SOLID (`editing/duplicate.ts` + `DUPLICATE_ROW` action wired in `dom.ts` context menu) | OK |
 | Bulk delete | Pro | SOLID | OK |
 | Bulk column fill | Pro (+ diff preview) | callback only, no UI | GAP-JS |
 | Bulk edit modal | none (column fill covers) | callback only | GAP-JS (modal) |
 | Edit diff badge ("was: X") | Free | none | GAP-JS |
-| Per-column role restriction | Pro (server-enforced) | `editable` boolean only | GAP-JS (client-side advisory; document that server must enforce) |
+| Per-column role restriction | Pro (server-enforced) | SOLID advisory (`permissions/index.ts` `canEditCell`/`canViewCell`/`visibleColumns`; wired in `dom.ts`; JSDoc explicitly marks advisory, server must enforce) | OK |
 | Row-level ownership (`ownOnly`) | Free (current-user filter) | SOLID | OK |
 
 ## 4. Export
@@ -85,25 +85,42 @@ These are NOT parity gaps and will not get issues:
 | CSV (+ filtered, injection-safe) | Free | SOLID | OK |
 | Excel | Free (server) | code present; `xlsx` peer dep undeclared | GAP-JS (declare + document) |
 | PDF | none server-side | code present; `jspdf` peer deps undeclared | GAP-JS (declare) / GAP-WP (decide: offer or not) |
-| Print (+ print settings) | Free | none | GAP-JS |
+| Print (+ print settings) | Free | SOLID (`export/print.ts`: `toPrintHtml` + `openPrintWindow` + print stylesheet; `register()` for store wiring) | OK |
 | JSON export | none | SOLID | GAP-WP |
 | Copy to clipboard | Free (visible rows) | SOLID (selection TSV + CSV copy) | OK |
-| Filename templates | Free (tokens) | static `exportFilename` | GAP-JS (tokens) |
+| Filename templates | Free (tokens) | SOLID (`export/filename.ts` `resolveFilename`: `{table}`, `{date}` tokens; used by print and other exporters) | OK |
 
 ## 5. Library integrity items (block the parity claim)
 
-These are bugs in the parity *claim* itself, independent of features:
+All seven P0 items were resolved by issues #324-#327 (closed) and README PR #322.
 
-1. `table.on(event, fn)` is documented in the README but does not exist in source.
-2. `src/gravity-table.js` is an empty file shipped in the package.
-3. `i18n.formats` (formatNumber/formatDate) config key is accepted and ignored.
-4. `distinct` aggregation is in the TypeScript types but returns null.
-5. Virtual scroll API sets a flag the renderer never reads.
-6. `xlsx`/`jspdf` exports fail at runtime because peer deps are not declared.
-7. README/examples claim "100% parity"; this matrix is now the source of truth for that claim and the README must link it and soften the wording until the P0/P1 gaps close.
+## 6. v3 architecture status (July 2026)
+
+The library column now reflects the v3 architecture shipped across PRs #351-#373. Major deltas from the v2.0.0 baseline:
+
+- **Print export** shipped: `export/print.ts` (toPrintHtml + window.print flow + print stylesheet).
+- **Filename tokens** shipped: `export/filename.ts` (`{table}`, `{date}`).
+- **Star rating cell** shipped: `cells/star.ts`; registered in `cells/registry.ts`.
+- **Per-column roles** shipped: `permissions/index.ts` full advisory layer (`canEditCell`, `canViewCell`, `visibleColumns`); `dom.ts` wires both checks.
+- **Google Sheets adapter** shipped: `adapters/google-sheets.ts` (gviz CSV endpoint rewrite; public sheets only).
+- **XML adapter** shipped: `adapters/xml.ts` (regex extractor; no DOMParser dependency).
+- **CSV-by-URL adapter** shipped: `adapters/csv.ts` `createCsvAdapter`.
+- **Link-header pagination** shipped: `adapters/pagination-link.ts` (RFC-5988/8288 `rel="next"` follow).
+- **Virtual scroll wired** in `dom.ts` `maybeMountVirtual()`.
+- **Sticky headers** wired in `dom.css` (`.tc-th { position:sticky; top:0 }`).
+- **Conditional formatting rules engine** shipped: `cells/conditional.ts` (rules, colorScale, dataBar, icon kinds).
+- **Arrow-key grid nav** shipped: `render/a11y.ts` `mountRovingTabindex` + dom.ts wiring.
+- **Duplicate row** shipped: `editing/duplicate.ts` + `DUPLICATE_ROW` action in dom.ts context menu.
+- **Undo/redo history** shipped: `core/state.ts` stack + `store.undo()`/`redo()` + wrapper proxy; visual toast pending.
+- **Aria-live regions** shipped: `render/a11y.ts` `createLiveRegion` wired in dom.ts.
+- **Context menu** completed in dom.ts: right-click trigger, Popover API positioning + fallback, keyboard nav.
+
+Remaining P1 gaps: pagination per-page selector + jump-to-page UI (#329), search highlight wiring + fuzzy as default (#330), undo/redo toast (#332).
+
+Remaining P2 gaps: bulk fill UI, bulk edit modal, diff badge (#333); detail popup, row-link, auto-refresh, skeleton loader (#335); saved filter preset UI, URL pre-filter (#337); column pinning (#328); column resize (#338); server-proxy recipes docs (#339).
 
 ## Priorities
 
-- **P0 (integrity):** section 5 items; README claim correction on both sides.
-- **P1 (high-visibility parity):** sticky headers, print, pagination UI, undo/redo, search highlight+fuzzy (JS); search grammar, range selection + copy, context menu, richer inline cell types + validation (plugin).
+- **P0 (integrity):** all resolved (issues #324-#327, PR #322).
+- **P1 (high-visibility parity):** pagination UI, undo/redo toast, search highlight wiring (JS); search grammar, range selection + copy, richer inline cell types + validation (plugin).
 - **P2 (rest):** everything else in the matrix; PARKED items wait for the plugin to wire its orphaned services first.
