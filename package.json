@@ -89,6 +89,14 @@
       "import": "./dist/v3/cells/index.mjs",
       "types": "./dist/v3/cells/index.d.ts"
     },
+    "./cells/*": {
+      "import": "./dist/v3/cells/*.mjs",
+      "types": "./dist/v3/cells/*.d.ts"
+    },
+    "./cdn": {
+      "types": "./dist/v3/cdn.d.ts",
+      "default": "./dist/v3/tablecrafter.global.js"
+    },
     "./adapters/inline": {
       "import": "./dist/v3/adapters/inline.mjs",
       "types": "./dist/v3/adapters/inline.d.ts"
