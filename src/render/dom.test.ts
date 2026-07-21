@@ -722,6 +722,72 @@ describe('pagination — jump-to-page input', () => {
   });
 });
 
+describe('column pinning (#328)', () => {
+  const PIN_COLS: TableCrafterColumn[] = [
+    { key: 'name', label: 'Name', width: 150 },
+    { key: 'age', label: 'Age', width: 80 },
+    { key: 'city', label: 'City' },
+  ];
+  const PIN_DATA = [
+    { id: 1, name: 'Charlie', age: 30, city: 'Austin' },
+    { id: 2, name: 'Alice', age: 25, city: 'Boston' },
+  ];
+
+  it('renders a declaratively-pinned column with sticky class and left offset 0', () => {
+    const cols = PIN_COLS.map((c) => (c.key === 'name' ? { ...c, pinned: 'left' as const } : c));
+    const store = makeStore({ columns: cols, data: PIN_DATA.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: cols });
+
+    const th = host.querySelector('.tc-th[data-col="name"]') as HTMLElement;
+    const td = host.querySelector('.tc-cell[data-col="name"]') as HTMLElement;
+    expect(th.classList.contains('tc-pinned')).toBe(true);
+    expect(th.classList.contains('tc-pinned-left')).toBe(true);
+    expect(th.style.left).toBe('0px');
+    expect(td.classList.contains('tc-pinned-left')).toBe(true);
+    r.destroy();
+  });
+
+  it('stacks a second left-pinned column at the first column width offset', () => {
+    const cols = PIN_COLS.map((c) =>
+      c.key === 'name' || c.key === 'age' ? { ...c, pinned: 'left' as const } : c
+    );
+    const store = makeStore({ columns: cols, data: PIN_DATA.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: cols });
+
+    const ageTh = host.querySelector('.tc-th[data-col="age"]') as HTMLElement;
+    expect(ageTh.classList.contains('tc-pinned-left')).toBe(true);
+    expect(ageTh.style.left).toBe('150px'); // width of the 'name' column ahead of it
+    r.destroy();
+  });
+
+  it('pins a right-pinned column with a right offset', () => {
+    const cols = PIN_COLS.map((c) => (c.key === 'city' ? { ...c, pinned: 'right' as const } : c));
+    const store = makeStore({ columns: cols, data: PIN_DATA.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: cols });
+
+    const th = host.querySelector('.tc-th[data-col="city"]') as HTMLElement;
+    expect(th.classList.contains('tc-pinned-right')).toBe(true);
+    expect(th.style.right).toBe('0px');
+    r.destroy();
+  });
+
+  it('pinColumn() pins at runtime and unpinColumn() removes it', () => {
+    const store = makeStore({ columns: PIN_COLS, data: PIN_DATA.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: PIN_COLS });
+
+    expect((host.querySelector('.tc-th[data-col="age"]') as HTMLElement).classList.contains('tc-pinned')).toBe(false);
+
+    r.pinColumn('age', 'left');
+    expect((host.querySelector('.tc-th[data-col="age"]') as HTMLElement).classList.contains('tc-pinned-left')).toBe(true);
+    expect((host.querySelector('.tc-cell[data-col="age"]') as HTMLElement).classList.contains('tc-pinned-left')).toBe(true);
+
+    r.unpinColumn('age');
+    expect((host.querySelector('.tc-th[data-col="age"]') as HTMLElement).classList.contains('tc-pinned')).toBe(false);
+    expect((host.querySelector('.tc-cell[data-col="age"]') as HTMLElement).hasAttribute('style')).toBe(false);
+    r.destroy();
+  });
+});
+
 describe('undo/redo toast (#332)', () => {
   it('shows a toast naming the field and restored value on undo', () => {
     const store = makeStore();

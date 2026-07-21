@@ -356,6 +356,53 @@ export function mountTable(
     return columns.filter((c) => c.hidden !== true && canViewCell(c, role));
   }
 
+  // ---- column pinning (#328) --------------------------------------------
+  const DEFAULT_PIN_WIDTH = 120;
+  function pinWidth(col: TableCrafterColumn): number {
+    return col.width ?? col.minWidth ?? DEFAULT_PIN_WIDTH;
+  }
+
+  /**
+   * Cumulative sticky offsets for pinned columns, keyed by column key.
+   * Left-pinned columns accumulate from the left edge in visible order;
+   * right-pinned columns accumulate from the right edge in reverse.
+   */
+  function pinOffsets(): Map<string, { side: 'left' | 'right'; offset: number }> {
+    const cols = visibleColumns();
+    const map = new Map<string, { side: 'left' | 'right'; offset: number }>();
+    let left = 0;
+    for (const col of cols) {
+      if (col.pinned === 'left') {
+        map.set(col.key, { side: 'left', offset: left });
+        left += pinWidth(col);
+      }
+    }
+    let right = 0;
+    for (let i = cols.length - 1; i >= 0; i--) {
+      const col = cols[i]!;
+      if (col.pinned === 'right') {
+        map.set(col.key, { side: 'right', offset: right });
+        right += pinWidth(col);
+      }
+    }
+    return map;
+  }
+
+  /** Apply (or clear) sticky pin classes + inline offset on a header/body cell. */
+  function applyPin(
+    cell: HTMLElement,
+    col: TableCrafterColumn,
+    offsets: Map<string, { side: 'left' | 'right'; offset: number }>
+  ): void {
+    const pin = offsets.get(col.key);
+    cell.classList.remove('tc-pinned', 'tc-pinned-left', 'tc-pinned-right');
+    cell.style.removeProperty('left');
+    cell.style.removeProperty('right');
+    if (!pin) return;
+    cell.classList.add('tc-pinned', `tc-pinned-${pin.side}`);
+    cell.style[pin.side] = `${pin.offset}px`;
+  }
+
   // ---- value formatting + cell content ----------------------------------
   function formatValue(value: unknown, type?: TableCrafterColumn['type']): string {
     if (value === null || value === undefined) return '';
@@ -501,9 +548,11 @@ export function mountTable(
     const cols = visibleColumns();
     const tr = el('tr', undefined, { role: 'row' });
     const badges = getSortBadges(state);
+    const offsets = pinOffsets();
     cols.forEach((col) => {
       const th = el('th', 'tc-th', { role: 'columnheader', 'data-col': col.key });
       if (col.sortable !== false) th.classList.add('tc-sortable');
+      applyPin(th, col, offsets);
       const label = el('span', 'tc-th-label');
       label.textContent = col.label ?? col.key;
       th.appendChild(label);
@@ -530,9 +579,11 @@ export function mountTable(
     const tr = el('tr', 'tc-row', { role: 'row' });
     tr.dataset.rowId = String(rowId);
     if (hasId(currentSelection, String(rowId))) tr.classList.add('tc-selected');
+    const offsets = pinOffsets();
     cols.forEach((col) => {
       const td = el('td', 'tc-cell', { role: 'gridcell', 'data-col': col.key });
       td.dataset.rowId = String(rowId);
+      applyPin(td, col, offsets);
       const editable = col.editable === true && canEditCell(col, role);
       if (editable) td.dataset.editable = 'true';
       const value = isRecord(row) ? row[col.key] : undefined;
@@ -1313,11 +1364,29 @@ export function mountTable(
   });
 
   // ---- Renderer handle --------------------------------------------------
+  function rerender(): void {
+    const state = store.getState();
+    prevState = state;
+    reconcile(state, null); // null forces a full rebuild so pin classes reflow
+  }
+
   return {
     update(state: TableState): void {
       const prev = prevState;
       prevState = state;
       reconcile(state, prev);
+    },
+    pinColumn(field: string, side: 'left' | 'right' = 'left'): void {
+      const col = columns.find((c) => c.key === field);
+      if (!col || col.pinned === side) return;
+      col.pinned = side;
+      rerender();
+    },
+    unpinColumn(field: string): void {
+      const col = columns.find((c) => c.key === field);
+      if (!col || col.pinned === undefined) return;
+      col.pinned = undefined;
+      rerender();
     },
     destroy(): void {
       ac.abort();

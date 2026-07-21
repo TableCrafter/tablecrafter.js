@@ -38,7 +38,7 @@ These are NOT parity gaps and will not get issues:
 | Saved filter presets | Free (per-user) | API only, no UI | GAP-JS (UI) |
 | URL-parameter pre-filter | Free (`?gt_col_x=`) | none | GAP-JS |
 | Sticky headers | Free (CSS native) | SOLID (`dom.css` `.tc-th { position:sticky; top:0; z-index:2 }`) | OK |
-| Column pinning (sticky columns) | none | class-only implementation (no CSS sticky shipped) | GAP-WP + finish in JS |
+| Column pinning (sticky columns) | none | declarative `column.pinned` + runtime `pinColumn()`/`unpinColumn()`; renderer sets `position:sticky` with computed left/right offsets, CSS in `dom.css` | GAP-WP (plugin lacks it) |
 | Column resize | Free | none | GAP-JS |
 | Column reorder / visibility | Free (drag-drop + picker) | SOLID (programmatic + config) | OK |
 | Responsive card view | Free (768/480 breakpoints) | SOLID (breakpoints, expandable sections) | OK |
@@ -117,7 +117,7 @@ The library column now reflects the v3 architecture shipped across PRs #351-#373
 
 Remaining P1 gaps: pagination per-page selector + jump-to-page UI (#329), search highlight wiring + fuzzy as default (#330).
 
-Remaining P2 gaps: bulk fill UI, bulk edit modal, diff badge (#333); detail popup, row-link, auto-refresh, skeleton loader (#335); saved filter preset UI, URL pre-filter (#337); column pinning (#328); column resize (#338); server-proxy recipes docs (#339).
+Remaining P2 gaps: bulk fill UI, bulk edit modal, diff badge (#333); detail popup, row-link, auto-refresh, skeleton loader (#335); saved filter preset UI, URL pre-filter (#337); column resize (#338); server-proxy recipes docs (#339).
 
 ## Priorities
 

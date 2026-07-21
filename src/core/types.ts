@@ -58,6 +58,8 @@ export interface TableCrafterColumn {
   pinned?: 'left' | 'right' | undefined;
   /** Minimum column width in px. */
   minWidth?: number | undefined;
+  /** Fixed column width in px; used as the pinned-column offset basis (#328). */
+  width?: number | undefined;
   /** Custom cell renderer name registered via the cell registry. */
   renderer?: string | undefined;
   /** Validation rules applied on edit commit. */
@@ -408,4 +410,8 @@ export interface Renderer {
   destroy(): void;
   /** Imperative update trigger (called automatically via subscribe). */
   update(state: TableState): void;
+  /** Pin a column to an edge with sticky positioning (#328). */
+  pinColumn(field: string, side?: 'left' | 'right'): void;
+  /** Remove a column's pinning (#328). */
+  unpinColumn(field: string): void;
 }
