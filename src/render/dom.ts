@@ -46,6 +46,7 @@ import type {
   RowId,
   Action,
   ValidationRule,
+  TableCrafterEventMap,
 } from '../core/types';
 
 import { createCellRegistry } from '../cells/registry';
@@ -89,6 +90,8 @@ export interface UiStrings {
   clearFilter: string;
   pageSize: string; // "Rows per page"
   goToPage: string; // "Go to page"
+  undoToast: string; // "Undo: {column} restored to \"{value}\""
+  redoToast: string; // "Redo: {column} set to \"{value}\""
 }
 
 const UI_STRINGS: UiStrings = {
@@ -110,6 +113,8 @@ const UI_STRINGS: UiStrings = {
   clearFilter: 'Clear filter',
   pageSize: 'Rows per page',
   goToPage: 'Go to page',
+  undoToast: 'Undo: {column} restored to "{value}"',
+  redoToast: 'Redo: {column} set to "{value}"',
 };
 
 /**
@@ -291,6 +296,42 @@ export function mountTable(
   element.appendChild(root);
 
   const liveRegion = createLiveRegion();
+
+  // ---- undo/redo toast (#332) -------------------------------------------
+  // Non-blocking, auto-dismissing confirmation of undo/redo. The headless
+  // store emits history:undo / history:redo with the changed field/values;
+  // this renders a transient toast and mirrors it to the live region so
+  // screen-reader users hear the same confirmation.
+  const TOAST_MS = 3000;
+  const toastLayer = el('div', 'tc-toast-layer');
+  root.appendChild(toastLayer);
+  const toastTimers = new Set<ReturnType<typeof setTimeout>>();
+
+  function columnLabel(key: string): string {
+    if (!key) return '';
+    return columns.find((c) => c.key === key)?.label ?? key;
+  }
+
+  function showToast(message: string): void {
+    const toast = el('div', 'tc-toast', { role: 'status', 'aria-live': 'polite' });
+    toast.textContent = message;
+    toastLayer.appendChild(toast);
+    liveRegion.announce(message);
+    const timer = setTimeout(() => {
+      toast.remove();
+      toastTimers.delete(timer);
+    }, TOAST_MS);
+    toastTimers.add(timer);
+  }
+
+  const onUndo = (p: TableCrafterEventMap['history:undo']): void => {
+    showToast(fmt(strings.undoToast, { column: columnLabel(p.column), value: String(p.value ?? '') }));
+  };
+  const onRedo = (p: TableCrafterEventMap['history:redo']): void => {
+    showToast(fmt(strings.redoToast, { column: columnLabel(p.column), value: String(p.value ?? '') }));
+  };
+  store.on('history:undo', onUndo);
+  store.on('history:redo', onRedo);
 
   // ---- state tracking ---------------------------------------------------
   let latestState: TableState | null = null;
@@ -1281,6 +1322,10 @@ export function mountTable(
     destroy(): void {
       ac.abort();
       unsubscribe();
+      store.off('history:undo', onUndo);
+      store.off('history:redo', onRedo);
+      for (const t of toastTimers) clearTimeout(t);
+      toastTimers.clear();
       virtualCtrl?.destroy();
       if (typeof a11yTeardown === 'function') a11yTeardown();
       liveRegion.destroy();

@@ -269,6 +269,9 @@ export interface TableCrafterEventMap {
   'filter': { column: string; filter: ColumnFilter | null };
   'page:change': { page: number; pageSize: number };
   'selection:change': { selection: Set<RowId> };
+  /** Emitted after undo/redo with the first changed cell, for the toast (#332). */
+  'history:undo': { column: string; value: unknown; previousValue: unknown; changed: number };
+  'history:redo': { column: string; value: unknown; previousValue: unknown; changed: number };
 }
 
 export type EventHandler<T = unknown> = (payload: T) => void;

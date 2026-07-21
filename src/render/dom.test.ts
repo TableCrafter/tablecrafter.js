@@ -721,3 +721,64 @@ describe('pagination — jump-to-page input', () => {
     r.destroy();
   });
 });
+
+describe('undo/redo toast (#332)', () => {
+  it('shows a toast naming the field and restored value on undo', () => {
+    const store = makeStore();
+    const r = mountTable(store, host, { columns: COLUMNS });
+
+    store.editCell(1, 'name', 'Changed');
+    store.commitEdit();
+    store.undo();
+
+    const toast = host.querySelector('.tc-toast');
+    expect(toast).not.toBeNull();
+    expect(toast?.getAttribute('role')).toBe('status');
+    expect(toast?.textContent).toContain('Name'); // column label, not raw key
+    expect(toast?.textContent).toContain('Charlie'); // restored value
+    r.destroy();
+  });
+
+  it('shows a redo toast on redo', () => {
+    const store = makeStore();
+    const r = mountTable(store, host, { columns: COLUMNS });
+    store.editCell(1, 'name', 'Changed');
+    store.commitEdit();
+    store.undo();
+    host.querySelectorAll('.tc-toast').forEach((n) => n.remove());
+
+    store.redo();
+
+    const toast = host.querySelector('.tc-toast');
+    expect(toast?.textContent).toContain('Changed');
+    r.destroy();
+  });
+
+  it('auto-dismisses the toast after 3 seconds', () => {
+    vi.useFakeTimers();
+    try {
+      const store = makeStore();
+      const r = mountTable(store, host, { columns: COLUMNS });
+      store.editCell(1, 'name', 'Changed');
+      store.commitEdit();
+      store.undo();
+
+      expect(host.querySelector('.tc-toast')).not.toBeNull();
+      vi.advanceTimersByTime(3000);
+      expect(host.querySelector('.tc-toast')).toBeNull();
+      r.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops firing toasts after destroy', () => {
+    const store = makeStore();
+    const r = mountTable(store, host, { columns: COLUMNS });
+    r.destroy();
+    store.editCell(1, 'name', 'Changed');
+    store.commitEdit();
+    store.undo();
+    expect(host.querySelector('.tc-toast')).toBeNull();
+  });
+});
