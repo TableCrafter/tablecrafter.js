@@ -722,6 +722,71 @@ describe('pagination — jump-to-page input', () => {
   });
 });
 
+describe('saved filter preset UI (#337)', () => {
+  function presetController() {
+    const saved: string[] = [];
+    return {
+      list: () => [...saved],
+      save: vi.fn((name: string) => {
+        if (!saved.includes(name)) saved.push(name);
+      }),
+      apply: vi.fn(),
+      remove: vi.fn((name: string) => {
+        const i = saved.indexOf(name);
+        if (i >= 0) saved.splice(i, 1);
+      }),
+    };
+  }
+
+  it('renders a Save preset button and existing presets', () => {
+    const presets = presetController();
+    presets.save('Existing');
+    const store = makeStore();
+    const r = mountTable(store, host, { columns: COLUMNS, presets });
+
+    expect(host.querySelector('.tc-preset-save')).not.toBeNull();
+    const items = host.querySelectorAll('.tc-preset-apply');
+    expect(Array.from(items).map((n) => n.textContent)).toContain('Existing');
+    r.destroy();
+  });
+
+  it('prompts for a name and saves on Save preset click, then shows it', () => {
+    const presets = presetController();
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('My view');
+    const store = makeStore();
+    const r = mountTable(store, host, { columns: COLUMNS, presets });
+
+    (host.querySelector('.tc-preset-save') as HTMLButtonElement).click();
+
+    expect(presets.save).toHaveBeenCalledWith('My view');
+    expect(Array.from(host.querySelectorAll('.tc-preset-apply')).map((n) => n.textContent)).toContain('My view');
+    promptSpy.mockRestore();
+    r.destroy();
+  });
+
+  it('applies a preset on click and deletes on the × button', () => {
+    const presets = presetController();
+    presets.save('Alpha');
+    const store = makeStore();
+    const r = mountTable(store, host, { columns: COLUMNS, presets });
+
+    (host.querySelector('.tc-preset-apply') as HTMLButtonElement).click();
+    expect(presets.apply).toHaveBeenCalledWith('Alpha');
+
+    (host.querySelector('.tc-preset-delete') as HTMLButtonElement).click();
+    expect(presets.remove).toHaveBeenCalledWith('Alpha');
+    expect(host.querySelector('.tc-preset-apply')).toBeNull();
+    r.destroy();
+  });
+
+  it('renders no preset bar when no controller is supplied', () => {
+    const store = makeStore();
+    const r = mountTable(store, host, { columns: COLUMNS });
+    expect(host.querySelector('.tc-preset-bar')).toBeNull();
+    r.destroy();
+  });
+});
+
 describe('column pinning (#328)', () => {
   const PIN_COLS: TableCrafterColumn[] = [
     { key: 'name', label: 'Name', width: 150 },

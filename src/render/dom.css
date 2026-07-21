@@ -393,6 +393,44 @@
     display: grid;
   }
 
+  /* Saved filter presets (#337). */
+  .tc-preset-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  .tc-preset-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.125rem;
+    border: 1px solid var(--tc-border, #e5e7eb);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .tc-preset-apply,
+  .tc-preset-save,
+  .tc-preset-delete {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8125rem;
+    color: inherit;
+  }
+
+  .tc-preset-delete {
+    padding-inline: 0.375rem;
+    color: var(--tc-danger, #dc2626);
+  }
+
+  .tc-preset-apply:hover,
+  .tc-preset-delete:hover {
+    background: var(--tc-hover-bg, #f3f4f6);
+  }
+
   /* Column pinning (#328): sticky columns. JS sets the left/right offset. */
   .tc-pinned {
     position: sticky;

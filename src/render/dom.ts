@@ -92,6 +92,9 @@ export interface UiStrings {
   goToPage: string; // "Go to page"
   undoToast: string; // "Undo: {column} restored to \"{value}\""
   redoToast: string; // "Redo: {column} set to \"{value}\""
+  savePreset: string;
+  presetNamePrompt: string;
+  deletePreset: string; // "Delete preset {name}"
 }
 
 const UI_STRINGS: UiStrings = {
@@ -115,6 +118,9 @@ const UI_STRINGS: UiStrings = {
   goToPage: 'Go to page',
   undoToast: 'Undo: {column} restored to "{value}"',
   redoToast: 'Redo: {column} set to "{value}"',
+  savePreset: 'Save preset',
+  presetNamePrompt: 'Preset name',
+  deletePreset: 'Delete preset {name}',
 };
 
 /**
@@ -142,6 +148,24 @@ export interface DomRendererOptions extends RendererOptions {
    * Defaults to [10, 25, 50, 100].
    */
   pageSizes?: number[] | undefined;
+  /**
+   * Saved filter preset controller (#337). When provided, the toolbar shows a
+   * "Save preset" button and a list of saved presets with apply/delete. The
+   * wrapper wires this to its localStorage-backed preset API.
+   */
+  presets?: PresetController | undefined;
+}
+
+/** Filter preset UI hooks, provided by the wrapper (#337). */
+export interface PresetController {
+  /** Names of all saved presets. */
+  list(): string[];
+  /** Save the current filter state under a name. */
+  save(name: string): void;
+  /** Apply a saved preset. */
+  apply(name: string): void;
+  /** Delete a saved preset. */
+  remove(name: string): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -274,6 +298,52 @@ export function mountTable(
   const addBtn = el('button', 'tc-add-row', { type: 'button' });
   addBtn.textContent = strings.addNew;
   toolbar.append(searchInput, filterSummary, addBtn);
+
+  // ---- saved filter presets (#337) --------------------------------------
+  if (opts.presets) {
+    const presets = opts.presets;
+    const presetBar = el('div', 'tc-preset-bar');
+    const renderPresetBar = (): void => {
+      presetBar.textContent = '';
+      const saveBtn = el('button', 'tc-preset-save', { type: 'button' });
+      saveBtn.textContent = strings.savePreset;
+      saveBtn.addEventListener(
+        'click',
+        () => {
+          const name = typeof window !== 'undefined' ? window.prompt(strings.presetNamePrompt) : null;
+          if (name && name.trim()) {
+            presets.save(name.trim());
+            renderPresetBar();
+          }
+        },
+        { signal: ac.signal }
+      );
+      presetBar.appendChild(saveBtn);
+      for (const name of presets.list()) {
+        const item = el('span', 'tc-preset-item');
+        const applyBtn = el('button', 'tc-preset-apply', { type: 'button' });
+        applyBtn.textContent = name;
+        applyBtn.addEventListener('click', () => presets.apply(name), { signal: ac.signal });
+        const delBtn = el('button', 'tc-preset-delete', {
+          type: 'button',
+          'aria-label': fmt(strings.deletePreset, { name }),
+        });
+        delBtn.textContent = '×';
+        delBtn.addEventListener(
+          'click',
+          () => {
+            presets.remove(name);
+            renderPresetBar();
+          },
+          { signal: ac.signal }
+        );
+        item.append(applyBtn, delBtn);
+        presetBar.appendChild(item);
+      }
+    };
+    renderPresetBar();
+    toolbar.appendChild(presetBar);
+  }
 
   const wrapper = el('div', 'tc-table-wrapper');
   const table = el('table', 'tc-table', { role: 'grid' });

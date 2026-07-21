@@ -481,3 +481,68 @@ describe('use(plugin) / unuse(name)', () => {
     expect(t.unuse('no-such-plugin-xyz')).toBe(false);
   });
 });
+
+describe('filter presets + URL sync (#337)', () => {
+  let host: HTMLDivElement;
+  beforeEach(() => {
+    globalThis.window?.localStorage?.clear?.();
+    host = document.createElement('div');
+    host.id = 'preset-host';
+    document.body.appendChild(host);
+    window.history.replaceState({}, '', '/');
+  });
+  afterEach(() => {
+    host?.remove();
+    window.history.replaceState({}, '', '/');
+  });
+
+  const DATA = [
+    { id: 1, status: 'active', region: 'west' },
+    { id: 2, status: 'closed', region: 'east' },
+  ];
+  const COLUMNS = [{ key: 'status' }, { key: 'region' }];
+
+  it('saves the current filters as a preset and lists it', () => {
+    const t = new TableCrafter(host, { data: DATA, columns: COLUMNS, tableId: 't-presets' });
+    t.setFilter('status', { operator: 'contains', value: 'active' });
+    t.saveFilterPreset('Active only');
+
+    expect(t.listFilterPresets()).toContain('Active only');
+  });
+
+  it('loadFilterPreset restores saved filter state', () => {
+    const t = new TableCrafter(host, { data: DATA, columns: COLUMNS, tableId: 't-load' });
+    t.setFilter('region', { operator: 'contains', value: 'west' });
+    t.saveFilterPreset('West');
+    t.clearFilter();
+    expect(t.getState().filters.region).toBeUndefined();
+
+    t.loadFilterPreset('West');
+    expect(t.getState().filters.region).toEqual({ operator: 'contains', value: 'west' });
+  });
+
+  it('deleteFilterPreset removes it from the list', () => {
+    const t = new TableCrafter(host, { data: DATA, columns: COLUMNS, tableId: 't-del' });
+    t.saveFilterPreset('Temp');
+    t.deleteFilterPreset('Temp');
+    expect(t.listFilterPresets()).not.toContain('Temp');
+  });
+
+  it('applies ?tc_{field}= URL params as filters on init', () => {
+    window.history.replaceState({}, '', '/?tc_status=active');
+    const t = new TableCrafter(host, { data: DATA, columns: COLUMNS, tableId: 't-url' });
+    expect(t.getState().filters.status).toEqual({ operator: 'contains', value: 'active' });
+  });
+
+  it('syncUrl:true writes filters to the URL on change', () => {
+    const t = new TableCrafter(host, { data: DATA, columns: COLUMNS, tableId: 't-sync', syncUrl: true });
+    t.setFilter('region', { operator: 'contains', value: 'east' });
+    expect(new URLSearchParams(window.location.search).get('tc_region')).toBe('east');
+  });
+
+  it('does not touch the URL when syncUrl is off (default)', () => {
+    const t = new TableCrafter(host, { data: DATA, columns: COLUMNS, tableId: 't-nosync' });
+    t.setFilter('region', { operator: 'contains', value: 'east' });
+    expect(window.location.search).toBe('');
+  });
+});
