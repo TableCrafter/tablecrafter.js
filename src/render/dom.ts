@@ -101,6 +101,11 @@ export interface UiStrings {
   lastUpdated: string; // "Last updated: {time}"
   permissionDenied: string;
   resizeColumn: string; // resize-handle aria-label
+  fillColumn: string;
+  bulkEdit: string;
+  apply: string;
+  selectColumn: string;
+  wasValue: string; // "was: {value}"
 }
 
 const UI_STRINGS: UiStrings = {
@@ -133,6 +138,11 @@ const UI_STRINGS: UiStrings = {
   lastUpdated: 'Last updated: {time}',
   permissionDenied: 'You do not have permission to edit this field',
   resizeColumn: 'Resize column',
+  fillColumn: 'Fill column',
+  bulkEdit: 'Bulk edit',
+  apply: 'Apply',
+  selectColumn: 'Column',
+  wasValue: 'was: {value}',
 };
 
 /**
@@ -151,6 +161,8 @@ export interface DomRendererOptions extends RendererOptions {
   showPermissionTooltip?: boolean | undefined;
   /** Enable interactive column-resize drag handles on headers (#338). */
   columnResize?: boolean | undefined;
+  /** Show a fading "was: X" diff badge after an inline edit (#333). */
+  editDiffBadge?: boolean | undefined;
   /** BCP-47 locale override; otherwise auto-detected from <html lang>. */
   locale?: string | undefined;
   /** Per-mount UI string overrides. */
@@ -384,6 +396,31 @@ export function mountTable(
     renderPresetBar();
     toolbar.appendChild(presetBar);
   }
+
+  // ---- bulk editing bar (#333) ------------------------------------------
+  // Shown only while rows are selected. "Fill column" applies one value to a
+  // chosen column across all selected rows; "Bulk edit" opens a multi-column
+  // modal. Both write through store.bulkFill per column.
+  const bulkBar = el('div', 'tc-bulk-bar tc-hidden');
+  const fillBtn = el('button', 'tc-bulk-fill', { type: 'button' });
+  fillBtn.textContent = strings.fillColumn;
+  const bulkEditBtn = el('button', 'tc-bulk-edit', { type: 'button' });
+  bulkEditBtn.textContent = strings.bulkEdit;
+  bulkBar.append(fillBtn, bulkEditBtn);
+  toolbar.appendChild(bulkBar);
+
+  function editableColumns(): TableCrafterColumn[] {
+    return visibleColumns().filter((c) => c.editable === true && roleCanEdit(c));
+  }
+  function selectedIds(): RowId[] {
+    return [...currentSelection];
+  }
+  function renderBulkBar(): void {
+    bulkBar.classList.toggle('tc-hidden', currentSelection.size === 0);
+  }
+
+  fillBtn.addEventListener('click', () => openFillPanel(), { signal: ac.signal });
+  bulkEditBtn.addEventListener('click', () => openBulkEditModal(), { signal: ac.signal });
 
   const wrapper = el('div', 'tc-table-wrapper');
   const table = el('table', 'tc-table', { role: 'grid' });
@@ -809,6 +846,109 @@ export function mountTable(
     );
     root.appendChild(detailModal);
   }
+
+  // ---- bulk fill / bulk edit modals (#333) ------------------------------
+  const bulkModal = el('div', 'tc-bulk-modal tc-hidden', {
+    role: 'dialog',
+    'aria-modal': 'true',
+  });
+  const bulkPanel = el('div', 'tc-bulk-panel');
+  bulkModal.appendChild(bulkPanel);
+  bulkModal.addEventListener('click', (e) => {
+    if (e.target === bulkModal) closeBulk();
+  }, { signal: ac.signal });
+  root.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !bulkModal.classList.contains('tc-hidden')) closeBulk();
+  }, { signal: ac.signal });
+  root.appendChild(bulkModal);
+
+  function closeBulk(): void {
+    bulkModal.classList.add('tc-hidden');
+    bulkPanel.textContent = '';
+  }
+  function bulkHeader(titleText: string): HTMLElement {
+    const header = el('div', 'tc-bulk-header');
+    const title = el('h2', 'tc-bulk-title');
+    title.textContent = titleText;
+    const closeBtn = el('button', 'tc-bulk-close', { type: 'button', 'aria-label': strings.close });
+    closeBtn.textContent = '×';
+    closeBtn.addEventListener('click', closeBulk, { signal: ac.signal });
+    header.append(title, closeBtn);
+    return header;
+  }
+
+  /** "Fill column": pick one column + value, apply to all selected rows. */
+  function openFillPanel(): void {
+    if (currentSelection.size === 0) return;
+    bulkPanel.textContent = '';
+    bulkPanel.appendChild(bulkHeader(strings.fillColumn));
+    const select = el('select', 'tc-bulk-col-select', { 'aria-label': strings.selectColumn });
+    for (const col of editableColumns()) {
+      const opt = el('option');
+      opt.value = col.key;
+      opt.textContent = col.label ?? col.key;
+      select.appendChild(opt);
+    }
+    const input = el('input', 'tc-bulk-value', { type: 'text', 'aria-label': strings.fillColumn });
+    const applyBtn = el('button', 'tc-bulk-apply', { type: 'button' });
+    applyBtn.textContent = strings.apply;
+    applyBtn.addEventListener('click', () => {
+      store.bulkFill(selectedIds(), select.value, input.value);
+      closeBulk();
+    }, { signal: ac.signal });
+    bulkPanel.append(select, input, applyBtn);
+    bulkModal.classList.remove('tc-hidden');
+  }
+
+  /** "Bulk edit": check any columns + set values, apply to all selected rows. */
+  function openBulkEditModal(): void {
+    if (currentSelection.size === 0) return;
+    bulkPanel.textContent = '';
+    bulkPanel.appendChild(bulkHeader(strings.bulkEdit));
+    const rows: { key: string; check: HTMLInputElement; input: HTMLInputElement }[] = [];
+    const list = el('div', 'tc-bulk-fields');
+    for (const col of editableColumns()) {
+      const row = el('label', 'tc-bulk-field');
+      const check = el('input', 'tc-bulk-check', { type: 'checkbox' }) as HTMLInputElement;
+      check.dataset.col = col.key;
+      const span = el('span', 'tc-bulk-field-label');
+      span.textContent = col.label ?? col.key;
+      const input = el('input', 'tc-bulk-field-input', { type: 'text' }) as HTMLInputElement;
+      row.append(check, span, input);
+      list.appendChild(row);
+      rows.push({ key: col.key, check, input });
+    }
+    const applyBtn = el('button', 'tc-bulk-apply', { type: 'button' });
+    applyBtn.textContent = strings.apply;
+    applyBtn.addEventListener('click', () => {
+      const ids = selectedIds();
+      for (const { key, check, input } of rows) {
+        if (check.checked) store.bulkFill(ids, key, input.value);
+      }
+      closeBulk();
+    }, { signal: ac.signal });
+    bulkPanel.append(list, applyBtn);
+    bulkModal.classList.remove('tc-hidden');
+  }
+
+  // ---- edit diff badge (#333) -------------------------------------------
+  const DIFF_MS = 4000;
+  const onCellEdit = (p: TableCrafterEventMap['cell:edit']): void => {
+    const td = tbody.querySelector<HTMLElement>(
+      `.tc-cell[data-row-id="${cssEscape(String(p.rowId))}"][data-col="${cssEscape(p.column)}"]`
+    );
+    if (!td) return;
+    td.querySelector('.tc-diff-badge')?.remove();
+    const badge = el('span', 'tc-diff-badge');
+    badge.textContent = fmt(strings.wasValue, { value: String(p.previousValue ?? '') });
+    td.appendChild(badge);
+    const timer = setTimeout(() => {
+      badge.remove();
+      toastTimers.delete(timer);
+    }, DIFF_MS);
+    toastTimers.add(timer);
+  };
+  if (opts.editDiffBadge) store.on('cell:edit', onCellEdit);
 
   /** Expand a rowLink template (`/records/{id}`) from a row's data. */
   function expandRowLink(row: unknown): string | null {
@@ -1268,6 +1408,7 @@ export function mountTable(
     latestState = next;
     currentSelection = next.selection;
     refreshRowIdFn(next);
+    renderBulkBar();
 
     if (prev === null) {
       buildHead(next);
@@ -1708,6 +1849,7 @@ export function mountTable(
       unsubscribe();
       store.off('history:undo', onUndo);
       store.off('history:redo', onRedo);
+      store.off('cell:edit', onCellEdit);
       for (const t of toastTimers) clearTimeout(t);
       toastTimers.clear();
       virtualCtrl?.destroy();

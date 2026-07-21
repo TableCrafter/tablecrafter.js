@@ -113,6 +113,8 @@ export interface WrapperConfig extends Omit<TableCrafterConfig, 'columns'> {
   showPermissionTooltip?: boolean | undefined;
   /** Enable interactive column-resize drag handles (#338). */
   columnResize?: boolean | undefined;
+  /** Show a fading "was: X" diff badge after an inline edit (#333). */
+  editDiffBadge?: boolean | undefined;
 
   // ---- v2 compat -------------------------------------------------------
   /**
@@ -233,6 +235,7 @@ export class TableCrafter {
       skeletonRows: config.skeletonRows,
       showPermissionTooltip: config.showPermissionTooltip,
       columnResize: config.columnResize,
+      editDiffBadge: config.editDiffBadge,
     };
 
     // 11. Filter presets + URL sync (#337)
