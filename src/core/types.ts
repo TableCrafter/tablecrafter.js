@@ -64,6 +64,10 @@ export interface TableCrafterColumn {
    *  replaced with values from the row. Set on any one column to make the whole
    *  row navigable. */
   rowLink?: string | undefined;
+  /** Advisory client-side edit gating (#338): the inline editor opens only for
+   *  users whose roles (via `setCurrentUser`) intersect this list. `'*'` allows
+   *  all. The SERVER must enforce the same restriction — this is a UI hint only. */
+  editableRoles?: string[] | undefined;
   /** Custom cell renderer name registered via the cell registry. */
   renderer?: string | undefined;
   /** Validation rules applied on edit commit. */
@@ -418,4 +422,6 @@ export interface Renderer {
   pinColumn(field: string, side?: 'left' | 'right'): void;
   /** Remove a column's pinning (#328). */
   unpinColumn(field: string): void;
+  /** Set the current user's roles for advisory per-column edit gating (#338). */
+  setCurrentUser(user: { roles?: string[] } | null): void;
 }

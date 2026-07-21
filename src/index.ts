@@ -107,6 +107,12 @@ export interface WrapperConfig extends Omit<TableCrafterConfig, 'columns'> {
   skeletonRows?: number | undefined;
   /** Re-fetch the data source URL every N seconds and re-render (#335). */
   autoRefresh?: number | undefined;
+  /** Current user's roles for advisory per-column edit gating (#338). */
+  roles?: string[] | undefined;
+  /** Show a "no permission" tooltip on role-restricted cells (#338). */
+  showPermissionTooltip?: boolean | undefined;
+  /** Enable interactive column-resize drag handles (#338). */
+  columnResize?: boolean | undefined;
 
   // ---- v2 compat -------------------------------------------------------
   /**
@@ -221,9 +227,12 @@ export class TableCrafter {
       strings: config.strings,
       columns: normalizedColumns,
       role: config.role,
+      roles: config.roles,
       locale,
       detailPopup: config.detailPopup,
       skeletonRows: config.skeletonRows,
+      showPermissionTooltip: config.showPermissionTooltip,
+      columnResize: config.columnResize,
     };
 
     // 11. Filter presets + URL sync (#337)
@@ -351,6 +360,19 @@ export class TableCrafter {
   /** Delete a saved preset. Chainable. */
   deleteFilterPreset(name: string): this {
     this._presets.remove(name);
+    return this;
+  }
+
+  // ---- Advisory permissions (#338) ---------------------------------------
+
+  /**
+   * Set the current user's roles for advisory per-column edit gating (#338).
+   * Client-side hint only — the server must enforce the same restrictions.
+   * Chainable.
+   */
+  setCurrentUser(user: { roles?: string[] } | null): this {
+    this._rendererOpts.roles = user?.roles;
+    this.renderer?.setCurrentUser(user);
     return this;
   }
 

@@ -722,6 +722,90 @@ describe('pagination — jump-to-page input', () => {
   });
 });
 
+describe('per-column role restrictions + column resize (#338)', () => {
+  const ROLE_COLS: TableCrafterColumn[] = [
+    { key: 'name', label: 'Name', editable: true },
+    { key: 'salary', label: 'Salary', editable: true, editableRoles: ['admin'] },
+  ];
+  const ROLE_DATA = [{ id: 1, name: 'Alice', salary: 100 }];
+
+  it('does not mark a role-restricted cell editable for a non-matching role', () => {
+    const store = makeStore({ columns: ROLE_COLS, data: ROLE_DATA.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: ROLE_COLS, roles: ['viewer'] });
+
+    const salary = host.querySelector('.tc-cell[data-col="salary"]') as HTMLElement;
+    const name = host.querySelector('.tc-cell[data-col="name"]') as HTMLElement;
+    expect(salary.dataset.editable).toBeUndefined();
+    expect(name.dataset.editable).toBe('true'); // unrestricted column still editable
+    r.destroy();
+  });
+
+  it('marks a role-restricted cell editable for a matching role', () => {
+    const store = makeStore({ columns: ROLE_COLS, data: ROLE_DATA.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: ROLE_COLS, roles: ['admin'] });
+    expect((host.querySelector('.tc-cell[data-col="salary"]') as HTMLElement).dataset.editable).toBe('true');
+    r.destroy();
+  });
+
+  it('shows a permission tooltip on a restricted cell when enabled', () => {
+    const store = makeStore({ columns: ROLE_COLS, data: ROLE_DATA.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: ROLE_COLS, roles: ['viewer'], showPermissionTooltip: true });
+    const salary = host.querySelector('.tc-cell[data-col="salary"]') as HTMLElement;
+    expect(salary.title).toMatch(/permission/i);
+    expect(salary.classList.contains('tc-edit-restricted')).toBe(true);
+    r.destroy();
+  });
+
+  it('setCurrentUser re-gates cells with new roles', () => {
+    const store = makeStore({ columns: ROLE_COLS, data: ROLE_DATA.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: ROLE_COLS, roles: ['viewer'] });
+    expect((host.querySelector('.tc-cell[data-col="salary"]') as HTMLElement).dataset.editable).toBeUndefined();
+
+    r.setCurrentUser({ roles: ['admin'] });
+    expect((host.querySelector('.tc-cell[data-col="salary"]') as HTMLElement).dataset.editable).toBe('true');
+    r.destroy();
+  });
+
+  it('renders resize handles and a drag updates the column width', () => {
+    const store = makeStore({ columns: ROLE_COLS, data: ROLE_DATA.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: ROLE_COLS, columnResize: true });
+
+    const th = host.querySelector('.tc-th[data-col="name"]') as HTMLElement;
+    const handle = th.querySelector('.tc-resize-handle') as HTMLElement;
+    expect(handle).not.toBeNull();
+
+    handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, bubbles: true }));
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 160 }));
+    window.dispatchEvent(new PointerEvent('pointerup', {}));
+
+    expect(th.style.width).toBe('60px'); // startWidth 0 (jsdom) + 60px drag
+    r.destroy();
+  });
+
+  it('preserves resized widths across a re-render (filter/paginate)', () => {
+    const store = makeStore({ columns: ROLE_COLS, data: ROLE_DATA.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: ROLE_COLS, columnResize: true });
+    const handle = host.querySelector('.tc-th[data-col="name"] .tc-resize-handle') as HTMLElement;
+    handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 0, bubbles: true }));
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 90 }));
+    window.dispatchEvent(new PointerEvent('pointerup', {}));
+
+    r.update({ ...store.getState() }); // force a rebuild
+    expect((host.querySelector('.tc-th[data-col="name"]') as HTMLElement).style.width).toBe('90px');
+    r.destroy();
+  });
+
+  it('double-click on a resize handle auto-sizes the column', () => {
+    const store = makeStore({ columns: ROLE_COLS, data: ROLE_DATA.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: ROLE_COLS, columnResize: true });
+    const handle = host.querySelector('.tc-th[data-col="name"] .tc-resize-handle') as HTMLElement;
+    handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    // jsdom reports scrollWidth 0, so auto-size falls back to the 40px minimum.
+    expect((host.querySelector('.tc-th[data-col="name"]') as HTMLElement).style.width).toBe('40px');
+    r.destroy();
+  });
+});
+
 describe('row UX batch (#335)', () => {
   const ROW_COLS: TableCrafterColumn[] = [
     { key: 'id', label: 'ID' },
