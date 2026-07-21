@@ -393,6 +393,27 @@
     display: grid;
   }
 
+  /* Column resize handles (#338). The .tc-th is position:sticky, which already
+     establishes a containing block for the absolutely-positioned handle. */
+  .tc-resize-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+    touch-action: none;
+  }
+  .tc-resize-handle:hover {
+    background: var(--tc-resize-hover, rgba(59, 130, 246, 0.4));
+  }
+
+  /* Role-restricted cell (#338). */
+  .tc-edit-restricted {
+    cursor: not-allowed;
+  }
+
   /* Row UX batch (#335): skeleton, detail modal, row-link, last-updated. */
   .tc-skeleton {
     height: 0.75rem;

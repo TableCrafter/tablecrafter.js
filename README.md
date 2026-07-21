@@ -272,6 +272,29 @@ table.setCurrentUser({ id: 42, roles: ['manager'], username: 'alice' });
 table.render();
 ```
 
+### Per-column edit restrictions
+
+Restrict an individual column's inline editor to specific roles with
+`editableRoles`, and (optionally) show a tooltip on cells the current user
+cannot edit:
+
+```js
+const table = new TableCrafter('#table', {
+  data: rows,
+  columns: [
+    { field: 'name',   label: 'Name',   editable: true },
+    { field: 'salary', label: 'Salary', editable: true, editableRoles: ['admin'] },
+  ],
+  roles: ['viewer'],            // or call table.setCurrentUser({ roles: [...] })
+  showPermissionTooltip: true,  // tooltip on restricted cells
+});
+```
+
+> **Advisory only.** `editableRoles`, `permissions`, and every other role check
+> in TableCrafter.js are **client-side hints**. They hide UI and block the
+> editor in the browser, but a determined user can bypass them. Your server
+> **must** enforce the same restrictions independently as the source of truth.
+
 ---
 
 ## i18n

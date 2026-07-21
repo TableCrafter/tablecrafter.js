@@ -39,7 +39,7 @@ These are NOT parity gaps and will not get issues:
 | URL-parameter pre-filter | Free (`?gt_col_x=`) | `?tc_{field}=` applied on init; `syncUrl:true` mirrors filters to the URL via pushState | OK |
 | Sticky headers | Free (CSS native) | SOLID (`dom.css` `.tc-th { position:sticky; top:0; z-index:2 }`) | OK |
 | Column pinning (sticky columns) | none | declarative `column.pinned` + runtime `pinColumn()`/`unpinColumn()`; renderer sets `position:sticky` with computed left/right offsets, CSS in `dom.css` | GAP-WP (plugin lacks it) |
-| Column resize | Free | none | GAP-JS |
+| Column resize | Free | `columnResize:true` drag handles on header borders; widths persist across paginate/filter; double-click auto-sizes | OK |
 | Column reorder / visibility | Free (drag-drop + picker) | SOLID (programmatic + config) | OK |
 | Responsive card view | Free (768/480 breakpoints) | SOLID (breakpoints, expandable sections) | OK |
 | Conditional formatting rules | Free (equals/contains/gt/lt/empty -> color/bold/class) | SOLID (`cells/conditional.ts`: evalRule + matchingRules + renderConditional; dataBar/colorScale/icon kinds; registered in cells/registry.ts) | OK |
@@ -75,7 +75,7 @@ These are NOT parity gaps and will not get issues:
 | Bulk column fill | Pro (+ diff preview) | callback only, no UI | GAP-JS |
 | Bulk edit modal | none (column fill covers) | callback only | GAP-JS (modal) |
 | Edit diff badge ("was: X") | Free | none | GAP-JS |
-| Per-column role restriction | Pro (server-enforced) | SOLID advisory (`permissions/index.ts` `canEditCell`/`canViewCell`/`visibleColumns`; wired in `dom.ts`; JSDoc explicitly marks advisory, server must enforce) | OK |
+| Per-column role restriction | Pro (server-enforced) | SOLID advisory: `column.editableRoles` + `setCurrentUser({roles})` re-gates the editor; `showPermissionTooltip` on restricted cells; README + JSDoc mark it client-side advisory, server enforces | OK |
 | Row-level ownership (`ownOnly`) | Free (current-user filter) | SOLID | OK |
 
 ## 4. Export
@@ -117,7 +117,7 @@ The library column now reflects the v3 architecture shipped across PRs #351-#373
 
 Remaining P1 gaps: pagination per-page selector + jump-to-page UI (#329), search highlight wiring + fuzzy as default (#330).
 
-Remaining P2 gaps: bulk fill UI, bulk edit modal, diff badge (#333); column resize (#338).
+Remaining P2 gaps: bulk fill UI, bulk edit modal, diff badge (#333).
 
 ## Priorities
 

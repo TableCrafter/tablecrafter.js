@@ -99,6 +99,8 @@ export interface UiStrings {
   detailTitle: string;
   close: string;
   lastUpdated: string; // "Last updated: {time}"
+  permissionDenied: string;
+  resizeColumn: string; // resize-handle aria-label
 }
 
 const UI_STRINGS: UiStrings = {
@@ -129,6 +131,8 @@ const UI_STRINGS: UiStrings = {
   detailTitle: 'Row details',
   close: 'Close',
   lastUpdated: 'Last updated: {time}',
+  permissionDenied: 'You do not have permission to edit this field',
+  resizeColumn: 'Resize column',
 };
 
 /**
@@ -141,6 +145,12 @@ export interface DomRendererOptions extends RendererOptions {
   columns?: TableCrafterColumn[] | undefined;
   /** Current user role for advisory column visibility checks. */
   role?: string | undefined;
+  /** Current user's roles for advisory per-column edit gating (#338). */
+  roles?: string[] | undefined;
+  /** Show a "no permission" tooltip on role-restricted cells (#338). */
+  showPermissionTooltip?: boolean | undefined;
+  /** Enable interactive column-resize drag handles on headers (#338). */
+  columnResize?: boolean | undefined;
   /** BCP-47 locale override; otherwise auto-detected from <html lang>. */
   locale?: string | undefined;
   /** Per-mount UI string overrides. */
@@ -272,7 +282,22 @@ export function mountTable(
 ): Renderer {
   const opts = options;
   const strings: UiStrings = { ...UI_STRINGS, ...(opts.strings ?? {}) };
-  const role = opts.role;
+  let role = opts.role;
+  let currentRoles: string[] = opts.roles ?? (opts.role ? [opts.role] : []);
+
+  // Column widths set by resize drags, persisted across rebuilds this session (#338).
+  const columnWidths = new Map<string, number>();
+
+  /** Advisory per-column edit gating (#338): editableRoles first, then the
+   *  legacy permission.editableBy path. */
+  function roleCanEdit(col: TableCrafterColumn): boolean {
+    const roles = col.editableRoles;
+    if (roles && roles.length > 0) {
+      if (roles.includes('*')) return true;
+      return currentRoles.some((r) => roles.includes(r));
+    }
+    return canEditCell(col, role);
+  }
   const cardBreakpoint = opts.breakpoints?.card ?? 640;
   const viewMode: 'table' | 'card' | 'auto' = opts.view ?? 'auto';
 
@@ -641,6 +666,9 @@ export function mountTable(
       const th = el('th', 'tc-th', { role: 'columnheader', 'data-col': col.key });
       if (col.sortable !== false) th.classList.add('tc-sortable');
       applyPin(th, col, offsets);
+      // Persisted resize width (or a declared column width) survives rebuilds.
+      const persisted = columnWidths.get(col.key) ?? col.width;
+      if (typeof persisted === 'number') th.style.width = `${persisted}px`;
       const label = el('span', 'tc-th-label');
       label.textContent = col.label ?? col.key;
       th.appendChild(label);
@@ -655,9 +683,75 @@ export function mountTable(
           th.appendChild(b);
         }
       }
+      if (opts.columnResize) attachResizeHandle(th, col.key);
       tr.appendChild(th);
     });
     thead.appendChild(tr);
+  }
+
+  /** Column-resize drag handle on a header cell (#338). */
+  function attachResizeHandle(th: HTMLElement, key: string): void {
+    const handle = el('span', 'tc-resize-handle', {
+      role: 'separator',
+      'aria-label': strings.resizeColumn,
+    });
+    let startX = 0;
+    let startWidth = 0;
+    const onMove = (e: PointerEvent): void => {
+      const next = Math.max(40, startWidth + (e.clientX - startX));
+      columnWidths.set(key, next);
+      th.style.width = `${next}px`;
+      applyColumnWidth(key, next);
+    };
+    const onUp = (): void => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    handle.addEventListener(
+      'pointerdown',
+      (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // don't trigger a sort
+        startX = e.clientX;
+        startWidth = columnWidths.get(key) ?? th.getBoundingClientRect().width;
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      },
+      { signal: ac.signal }
+    );
+    // Double-click auto-sizes the column to its widest cell content.
+    handle.addEventListener(
+      'dblclick',
+      (e) => {
+        e.stopPropagation();
+        const width = autoSizeColumn(key);
+        columnWidths.set(key, width);
+        th.style.width = `${width}px`;
+        applyColumnWidth(key, width);
+      },
+      { signal: ac.signal }
+    );
+    th.appendChild(handle);
+  }
+
+  /** Mirror a resized width onto every body cell of the column. */
+  function applyColumnWidth(key: string, width: number): void {
+    tbody
+      .querySelectorAll<HTMLElement>(`.tc-cell[data-col="${cssEscape(key)}"]`)
+      .forEach((td) => {
+        td.style.width = `${width}px`;
+      });
+  }
+
+  /** Widest rendered content in a column, for double-click auto-size. */
+  function autoSizeColumn(key: string): number {
+    let max = 40;
+    tbody
+      .querySelectorAll<HTMLElement>(`.tc-cell[data-col="${cssEscape(key)}"]`)
+      .forEach((td) => {
+        max = Math.max(max, td.scrollWidth);
+      });
+    return max;
   }
 
   // ---- row detail popup (#335) ------------------------------------------
@@ -763,8 +857,14 @@ export function mountTable(
       const td = el('td', 'tc-cell', { role: 'gridcell', 'data-col': col.key });
       td.dataset.rowId = String(rowId);
       applyPin(td, col, offsets);
-      const editable = col.editable === true && canEditCell(col, role);
-      if (editable) td.dataset.editable = 'true';
+      const editable = col.editable === true && roleCanEdit(col);
+      if (editable) {
+        td.dataset.editable = 'true';
+      } else if (col.editable === true && opts.showPermissionTooltip) {
+        // Column is editable in general, but this user's roles are restricted.
+        td.classList.add('tc-edit-restricted');
+        td.title = strings.permissionDenied;
+      }
       const value = isRecord(row) ? row[col.key] : undefined;
       if (isEditingCell(rowId, col.key)) {
         materializeEditor(td, row, col, value);
@@ -1596,6 +1696,11 @@ export function mountTable(
       const col = columns.find((c) => c.key === field);
       if (!col || col.pinned === undefined) return;
       col.pinned = undefined;
+      rerender();
+    },
+    setCurrentUser(user: { roles?: string[] } | null): void {
+      currentRoles = user?.roles ?? [];
+      role = currentRoles[0];
       rerender();
     },
     destroy(): void {
