@@ -73,6 +73,12 @@ table.render();
 | Plugin system | `use(plugin, opts)` / `unuse(name)` with full lifecycle hooks |
 | Events API | `on` / `off` / `once` for 8 named events |
 
+Credential-bearing sources (Airtable, Notion, SQL databases) must **not** be
+reached directly from the browser — their tokens and connection strings would
+be exposed. Put a thin server proxy in front of them: see
+[docs/server-proxy-recipes.md](docs/server-proxy-recipes.md) for Airtable,
+Notion, and SQL recipes.
+
 ### Platform
 
 | Feature | Details |
