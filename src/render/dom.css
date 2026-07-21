@@ -393,6 +393,27 @@
     display: grid;
   }
 
+  /* Column pinning (#328): sticky columns. JS sets the left/right offset. */
+  .tc-pinned {
+    position: sticky;
+    z-index: 1;
+    background: var(--tc-pinned-bg, var(--tc-cell-bg, #fff));
+  }
+
+  /* A pinned header cell must out-stack body pins and sit under nothing. */
+  .tc-th.tc-pinned {
+    z-index: 3;
+    background: var(--tc-header-bg);
+  }
+
+  .tc-pinned-left {
+    box-shadow: 2px 0 4px -2px rgba(0, 0, 0, 0.15);
+  }
+
+  .tc-pinned-right {
+    box-shadow: -2px 0 4px -2px rgba(0, 0, 0, 0.15);
+  }
+
   /* Undo/redo toast (#332): non-blocking, bottom-center, auto-dismissing. */
   .tc-toast-layer {
     position: fixed;

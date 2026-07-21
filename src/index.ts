@@ -243,6 +243,18 @@ export class TableCrafter {
     this.store.destroy();
   }
 
+  /** Pin a column to an edge with sticky positioning (#328). Chainable. */
+  pinColumn(field: string, side: 'left' | 'right' = 'left'): this {
+    this.renderer?.pinColumn(field, side);
+    return this;
+  }
+
+  /** Remove a column's pinning (#328). Chainable. */
+  unpinColumn(field: string): this {
+    this.renderer?.unpinColumn(field);
+    return this;
+  }
+
   // ---- Sort / filter / pagination proxy -----------------------------------
 
   /** Sort by column. Chainable. */
