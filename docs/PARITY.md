@@ -49,11 +49,11 @@ These are NOT parity gaps and will not get issues:
 | Sparkline cell | Pro (Data Bars sub-option) | SOLID standalone | GAP-WP (standalone cell type) |
 | Formula columns | wired: save in class-tc-admin.php:1374, augment in class-tc-ajax.php:2479, builder UI in table-builder.php:2000 | SOLID (arithmetic + function library) | GAP-WP (function library breadth; verify per issue) |
 | Totals/aggregation row | Free (incl. count-distinct) | SOLID except `distinct` unimplemented | GAP-JS (distinct) |
-| Detail row / entry popup | Free (eye icon) | mobile card expand only | GAP-JS |
-| Row link click-through | Free (URL template) | link cell type only, not row-level | GAP-JS |
+| Detail row / entry popup | Free (eye icon) | `detailPopup:true` renders an eye button opening a label/value modal (Escape/close/backdrop dismiss) | OK |
+| Row link click-through | Free (URL template) | `column.rowLink:'/x/{id}'` makes the whole row navigable; `{token}` expansion from row data | OK |
 | Row grouping / cell merge / pivot | orphaned or partially wired services | none | PARKED both sides (plugin must wire first) |
-| Auto-refresh + last-updated | Free | none | GAP-JS |
-| Skeleton loader | Free | none | GAP-JS |
+| Auto-refresh + last-updated | Free | `autoRefresh:N` re-fetches every N s; renderer shows `Last updated: HH:MM:SS` after each load | OK |
+| Skeleton loader | Free | `skeletonRows` (default 5) placeholder rows during initial load | OK |
 | Virtual scrolling / DOM windowing | Free (v8.0.18) | SOLID (`dom.ts` `maybeMountVirtual` wires `mountVirtualScroll`; opt-in via `virtual:true`) | OK |
 | Cell range selection + copy TSV | none | partial: selectRange/copySelectionAsTSV API real, no shift-click/drag DOM wiring | GAP-WP + finish DOM wiring in JS (#206) |
 | Context menu (right-click) | none | SOLID (`dom.ts`: right-click trigger, Popover API positioning + fallback, keyboard nav; Edit/Duplicate/Delete items) | GAP-WP |
@@ -117,7 +117,7 @@ The library column now reflects the v3 architecture shipped across PRs #351-#373
 
 Remaining P1 gaps: pagination per-page selector + jump-to-page UI (#329), search highlight wiring + fuzzy as default (#330).
 
-Remaining P2 gaps: bulk fill UI, bulk edit modal, diff badge (#333); detail popup, row-link, auto-refresh, skeleton loader (#335); column resize (#338).
+Remaining P2 gaps: bulk fill UI, bulk edit modal, diff badge (#333); column resize (#338).
 
 ## Priorities
 

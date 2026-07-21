@@ -546,3 +546,55 @@ describe('filter presets + URL sync (#337)', () => {
     expect(window.location.search).toBe('');
   });
 });
+
+describe('auto-refresh (#335)', () => {
+  let host: HTMLDivElement;
+  beforeEach(() => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+  });
+  afterEach(() => {
+    host?.remove();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('re-fetches the data URL on the configured interval', () => {
+    vi.useFakeTimers();
+    const t = new TableCrafter(host, {
+      data: 'https://example.test/rows',
+      columns: [{ key: 'id' }],
+      autoRefresh: 30,
+    });
+    const loadSpy = vi.spyOn((t as unknown as { store: { load: () => Promise<void> } }).store, 'load')
+      .mockResolvedValue(undefined);
+
+    vi.advanceTimersByTime(30_000);
+    expect(loadSpy).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(30_000);
+    expect(loadSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops refreshing after destroy', () => {
+    vi.useFakeTimers();
+    const t = new TableCrafter(host, {
+      data: 'https://example.test/rows',
+      columns: [{ key: 'id' }],
+      autoRefresh: 10,
+    });
+    const loadSpy = vi.spyOn((t as unknown as { store: { load: () => Promise<void> } }).store, 'load')
+      .mockResolvedValue(undefined);
+    t.destroy();
+    vi.advanceTimersByTime(30_000);
+    expect(loadSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not set an interval without autoRefresh', () => {
+    vi.useFakeTimers();
+    const t = new TableCrafter(host, { data: 'https://example.test/rows', columns: [{ key: 'id' }] });
+    const loadSpy = vi.spyOn((t as unknown as { store: { load: () => Promise<void> } }).store, 'load')
+      .mockResolvedValue(undefined);
+    vi.advanceTimersByTime(60_000);
+    expect(loadSpy).not.toHaveBeenCalled();
+  });
+});

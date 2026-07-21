@@ -60,6 +60,10 @@ export interface TableCrafterColumn {
   minWidth?: number | undefined;
   /** Fixed column width in px; used as the pinned-column offset basis (#328). */
   width?: number | undefined;
+  /** Row-link URL template (#335), e.g. `/records/{id}`; `{field}` tokens are
+   *  replaced with values from the row. Set on any one column to make the whole
+   *  row navigable. */
+  rowLink?: string | undefined;
   /** Custom cell renderer name registered via the cell registry. */
   renderer?: string | undefined;
   /** Validation rules applied on edit commit. */

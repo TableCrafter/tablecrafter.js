@@ -95,6 +95,10 @@ export interface UiStrings {
   savePreset: string;
   presetNamePrompt: string;
   deletePreset: string; // "Delete preset {name}"
+  viewDetails: string; // eye-button aria-label
+  detailTitle: string;
+  close: string;
+  lastUpdated: string; // "Last updated: {time}"
 }
 
 const UI_STRINGS: UiStrings = {
@@ -121,6 +125,10 @@ const UI_STRINGS: UiStrings = {
   savePreset: 'Save preset',
   presetNamePrompt: 'Preset name',
   deletePreset: 'Delete preset {name}',
+  viewDetails: 'View details',
+  detailTitle: 'Row details',
+  close: 'Close',
+  lastUpdated: 'Last updated: {time}',
 };
 
 /**
@@ -154,6 +162,12 @@ export interface DomRendererOptions extends RendererOptions {
    * wrapper wires this to its localStorage-backed preset API.
    */
   presets?: PresetController | undefined;
+  /** Show an eye-icon button per row that opens a detail modal (#335). */
+  detailPopup?: boolean | undefined;
+  /** Placeholder skeleton row count shown during initial load (#335, default 5). */
+  skeletonRows?: number | undefined;
+  /** Navigation hook for row-link clicks (#335); defaults to window.location.assign. */
+  navigate?: ((url: string) => void) | undefined;
 }
 
 /** Filter preset UI hooks, provided by the wrapper (#337). */
@@ -297,7 +311,8 @@ export function mountTable(
   const filterSummary = el('div', 'tc-filter-summary');
   const addBtn = el('button', 'tc-add-row', { type: 'button' });
   addBtn.textContent = strings.addNew;
-  toolbar.append(searchInput, filterSummary, addBtn);
+  const lastUpdated = el('div', 'tc-last-updated tc-hidden', { 'aria-live': 'polite' });
+  toolbar.append(searchInput, filterSummary, addBtn, lastUpdated);
 
   // ---- saved filter presets (#337) --------------------------------------
   if (opts.presets) {
@@ -619,6 +634,9 @@ export function mountTable(
     const tr = el('tr', undefined, { role: 'row' });
     const badges = getSortBadges(state);
     const offsets = pinOffsets();
+    if (detailEnabled) {
+      tr.appendChild(el('th', 'tc-actions-th', { role: 'columnheader', 'aria-label': strings.viewDetails }));
+    }
     cols.forEach((col) => {
       const th = el('th', 'tc-th', { role: 'columnheader', 'data-col': col.key });
       if (col.sortable !== false) th.classList.add('tc-sortable');
@@ -642,6 +660,69 @@ export function mountTable(
     thead.appendChild(tr);
   }
 
+  // ---- row detail popup (#335) ------------------------------------------
+  const detailEnabled = opts.detailPopup === true;
+  /** Number of leading action columns (currently: the detail eye button). */
+  function actionCols(): number {
+    return detailEnabled ? 1 : 0;
+  }
+
+  const detailModal = el('div', 'tc-detail-modal tc-hidden', {
+    role: 'dialog',
+    'aria-modal': 'true',
+    'aria-label': strings.detailTitle,
+  });
+  const detailPanel = el('div', 'tc-detail-panel');
+  detailModal.appendChild(detailPanel);
+  function closeDetail(): void {
+    detailModal.classList.add('tc-hidden');
+    detailPanel.textContent = '';
+  }
+  function openDetail(row: unknown): void {
+    detailPanel.textContent = '';
+    const header = el('div', 'tc-detail-header');
+    const title = el('h2', 'tc-detail-title');
+    title.textContent = strings.detailTitle;
+    const closeBtn = el('button', 'tc-detail-close', { type: 'button', 'aria-label': strings.close });
+    closeBtn.textContent = '×';
+    closeBtn.addEventListener('click', closeDetail, { signal: ac.signal });
+    header.append(title, closeBtn);
+    const list = el('dl', 'tc-detail-list');
+    for (const col of visibleColumns()) {
+      const dt = el('dt', 'tc-detail-label');
+      dt.textContent = col.label ?? col.key;
+      const dd = el('dd', 'tc-detail-value', { 'data-col': col.key });
+      dd.textContent = formatValue(isRecord(row) ? row[col.key] : undefined, col.type);
+      list.append(dt, dd);
+    }
+    detailPanel.append(header, list);
+    detailModal.classList.remove('tc-hidden');
+  }
+  if (detailEnabled) {
+    detailModal.addEventListener(
+      'click',
+      (e) => {
+        if (e.target === detailModal) closeDetail(); // backdrop click
+      },
+      { signal: ac.signal }
+    );
+    root.addEventListener(
+      'keydown',
+      (e) => {
+        if (e.key === 'Escape' && !detailModal.classList.contains('tc-hidden')) closeDetail();
+      },
+      { signal: ac.signal }
+    );
+    root.appendChild(detailModal);
+  }
+
+  /** Expand a rowLink template (`/records/{id}`) from a row's data. */
+  function expandRowLink(row: unknown): string | null {
+    const linkCol = visibleColumns().find((c) => c.rowLink);
+    if (!linkCol?.rowLink || !isRecord(row)) return null;
+    return linkCol.rowLink.replace(/\{(\w+)\}/g, (_m, key: string) => String(row[key] ?? ''));
+  }
+
   // ---- row / card builders ----------------------------------------------
   function buildRow(row: unknown, _absIndex: number): HTMLTableRowElement {
     const cols = visibleColumns();
@@ -649,6 +730,34 @@ export function mountTable(
     const tr = el('tr', 'tc-row', { role: 'row' });
     tr.dataset.rowId = String(rowId);
     if (hasId(currentSelection, String(rowId))) tr.classList.add('tc-selected');
+
+    // Leading detail-popup action cell (#335).
+    if (detailEnabled) {
+      const actionTd = el('td', 'tc-row-actions', { role: 'gridcell' });
+      const eye = el('button', 'tc-detail-btn', { type: 'button', 'aria-label': strings.viewDetails });
+      eye.textContent = '\u{1F441}'; // 👁
+      eye.addEventListener('click', () => openDetail(row), { signal: ac.signal });
+      actionTd.appendChild(eye);
+      tr.appendChild(actionTd);
+    }
+
+    // Row-link click-through (#335).
+    const link = expandRowLink(row);
+    if (link !== null) {
+      tr.dataset.rowLink = link;
+      tr.classList.add('tc-row-link');
+      tr.addEventListener(
+        'click',
+        (e) => {
+          const target = e.target as HTMLElement;
+          if (target.closest('button, input, a, select, textarea, [data-editable="true"]')) return;
+          const navigate = opts.navigate ?? ((url: string) => window.location.assign(url));
+          navigate(link);
+        },
+        { signal: ac.signal }
+      );
+    }
+
     const offsets = pinOffsets();
     cols.forEach((col) => {
       const td = el('td', 'tc-cell', { role: 'gridcell', 'data-col': col.key });
@@ -693,10 +802,27 @@ export function mountTable(
     tbody.textContent = '';
     cards.textContent = '';
     const rows = state.displayRows;
+    const totalCols = Math.max(1, visibleColumns().length + actionCols());
+
+    // Skeleton placeholder rows during an initial load (#335).
+    if (state.loading && rows.length === 0) {
+      const n = Math.max(0, opts.skeletonRows ?? 5);
+      for (let i = 0; i < n; i++) {
+        const tr = el('tr', 'tc-skeleton-row', { role: 'row', 'aria-hidden': 'true' });
+        for (let c = 0; c < totalCols; c++) {
+          const td = el('td', 'tc-cell', { role: 'gridcell' });
+          td.appendChild(el('div', 'tc-skeleton'));
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+      return;
+    }
+
     if (rows.length === 0) {
       const tr = el('tr', 'tc-no-results-row', { role: 'row' });
       const td = el('td', 'tc-no-results', { role: 'gridcell' });
-      td.colSpan = Math.max(1, visibleColumns().length);
+      td.colSpan = totalCols;
       td.textContent = strings.noResults;
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -786,6 +912,7 @@ export function mountTable(
   }
 
   // ---- loading / error / busy ------------------------------------------
+  let wasLoading = false;
   function renderStatus(state: TableState): void {
     overlay.classList.toggle('tc-hidden', !state.loading);
     overlay.setAttribute('aria-hidden', state.loading ? 'false' : 'true');
@@ -799,6 +926,17 @@ export function mountTable(
     } else if (existing) {
       existing.remove();
     }
+
+    // "Last updated: HH:MM:SS" after each successful fetch (#335 auto-refresh).
+    if (wasLoading && !state.loading && !state.error) {
+      const now = new Date();
+      const time = [now.getHours(), now.getMinutes(), now.getSeconds()]
+        .map((n) => String(n).padStart(2, '0'))
+        .join(':');
+      lastUpdated.textContent = fmt(strings.lastUpdated, { time });
+      lastUpdated.classList.remove('tc-hidden');
+    }
+    wasLoading = state.loading;
   }
 
   // ---- editor materialization -------------------------------------------
@@ -1047,7 +1185,9 @@ export function mountTable(
     // Also rebuild when the search query changes to apply or clear highlights, even
     // if the displayRows set happens to contain the same row references.
     const searchChanged = next.searchQuery !== prev.searchQuery;
-    if (rowsChanged || searchChanged) {
+    // A loading transition with no rows swaps the skeleton placeholders in/out (#335).
+    const skeletonChanged = next.loading !== prev.loading && next.displayRows.length === 0;
+    if (rowsChanged || searchChanged || skeletonChanged) {
       rebuild(next);
     } else if (next.editingCell !== prev.editingCell) {
       patchEditing(next, prev);
