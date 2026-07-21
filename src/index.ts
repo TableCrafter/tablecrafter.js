@@ -17,6 +17,9 @@ import { createTable } from './core/state';
 import type { TableCrafterStore } from './core/state';
 import { mountTable } from './render/dom';
 import type { DomRendererOptions, UiStrings } from './render/dom';
+import { createPresetStore } from './filtering/presets';
+import type { FilterState, PresetStore } from './filtering/presets';
+import { parseUrlFilters, serializeUrlFilters } from './filtering/url-filters';
 import type {
   TableCrafterConfig,
   TableCrafterColumn,
@@ -92,6 +95,12 @@ export interface WrapperConfig extends Omit<TableCrafterConfig, 'columns'> {
   breakpoints?: { card: number } | undefined;
   /** UI string overrides for localisation. */
   strings?: Partial<UiStrings> | undefined;
+  /** Id used to scope saved filter presets in localStorage (#337). Defaults
+   *  to the mount element's id, or 'default'. */
+  tableId?: string | undefined;
+  /** Mirror the active column filters into the URL query string (`?tc_field=`)
+   *  via history.pushState so the filtered view is bookmarkable (#337). */
+  syncUrl?: boolean | undefined;
 
   // ---- v2 compat -------------------------------------------------------
   /**
@@ -209,10 +218,42 @@ export class TableCrafter {
       locale,
     };
 
-    // 11. Auto-load if data is a URL string (do not call for inline array data)
+    // 11. Filter presets + URL sync (#337)
+    this._tableId =
+      config.tableId ?? (this.element && this.element.id ? this.element.id : 'default');
+    this._presets = createPresetStore(this._tableId);
+    this._syncUrl = config.syncUrl === true;
+
+    // Pre-apply any ?tc_{field}= URL filters before the first render.
+    if (typeof window !== 'undefined' && window.location) {
+      const urlFilters = parseUrlFilters(window.location.search);
+      for (const [column, filter] of Object.entries(urlFilters)) {
+        this.store.setFilter(column, filter);
+      }
+    }
+
+    // Mirror filter changes into the URL when opted in.
+    if (this._syncUrl) {
+      this.store.on('filter', () => this._writeUrl());
+    }
+
+    // 12. Auto-load if data is a URL string (do not call for inline array data)
     if (typeof config.data === 'string') {
       void this.store.load();
     }
+  }
+
+  private readonly _tableId: string;
+  private readonly _presets: PresetStore;
+  private readonly _syncUrl: boolean;
+
+  /** Serialize the current filters into the URL query string. */
+  private _writeUrl(): void {
+    if (typeof window === 'undefined' || !window.history) return;
+    const filters = this.store.getState().filters as FilterState;
+    const qs = serializeUrlFilters(filters, window.location.search);
+    const url = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`;
+    window.history.pushState({}, '', url);
   }
 
   // ---- Lifecycle ----------------------------------------------------------
@@ -232,7 +273,15 @@ export class TableCrafter {
     if (this.renderer) {
       return this; // already mounted — idempotent
     }
-    this.renderer = mountTable(this.store, this.element, this._rendererOpts);
+    this.renderer = mountTable(this.store, this.element, {
+      ...this._rendererOpts,
+      presets: {
+        list: () => this.listFilterPresets(),
+        save: (name) => void this.saveFilterPreset(name),
+        apply: (name) => void this.loadFilterPreset(name),
+        remove: (name) => void this.deleteFilterPreset(name),
+      },
+    });
     return this;
   }
 
@@ -252,6 +301,36 @@ export class TableCrafter {
   /** Remove a column's pinning (#328). Chainable. */
   unpinColumn(field: string): this {
     this.renderer?.unpinColumn(field);
+    return this;
+  }
+
+  // ---- Filter presets (#337) ---------------------------------------------
+
+  /** Save the current column filters as a named preset (localStorage). */
+  saveFilterPreset(name: string): this {
+    this._presets.save(name, this.store.getState().filters as FilterState);
+    return this;
+  }
+
+  /** Apply a saved preset's filter state. No-op if the preset is missing. */
+  loadFilterPreset(name: string): this {
+    const filters = this._presets.load(name);
+    if (!filters) return this;
+    this.store.clearFilter();
+    for (const [column, filter] of Object.entries(filters)) {
+      this.store.setFilter(column, filter);
+    }
+    return this;
+  }
+
+  /** Names of all saved presets for this table. */
+  listFilterPresets(): string[] {
+    return this._presets.list();
+  }
+
+  /** Delete a saved preset. Chainable. */
+  deleteFilterPreset(name: string): this {
+    this._presets.remove(name);
     return this;
   }
 

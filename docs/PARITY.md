@@ -35,8 +35,8 @@ These are NOT parity gaps and will not get issues:
 | Pagination UI | page controls + per-page selector + Show All | prev/next only; per-page + jump-to-page programmatic only | GAP-JS (UI) |
 | Global search | Free; fuzzy option; term highlighting | debounced search + full grammar (AND/OR/negation/field:value/regex/comparisons) | GAP-JS (highlight, fuzzy) / GAP-WP (grammar) |
 | Per-column filters | text, dropdown, multi-select, date-range + presets, numeric range, checkbox AND/OR | text, multiselect, date range, number range; auto-detection | OK (presets minor) |
-| Saved filter presets | Free (per-user) | API only, no UI | GAP-JS (UI) |
-| URL-parameter pre-filter | Free (`?gt_col_x=`) | none | GAP-JS |
+| Saved filter presets | Free (per-user) | `saveFilterPreset`/`loadFilterPreset`/`listFilterPresets`/`deleteFilterPreset` (localStorage, per-table) + toolbar UI (save/apply/delete) | OK |
+| URL-parameter pre-filter | Free (`?gt_col_x=`) | `?tc_{field}=` applied on init; `syncUrl:true` mirrors filters to the URL via pushState | OK |
 | Sticky headers | Free (CSS native) | SOLID (`dom.css` `.tc-th { position:sticky; top:0; z-index:2 }`) | OK |
 | Column pinning (sticky columns) | none | declarative `column.pinned` + runtime `pinColumn()`/`unpinColumn()`; renderer sets `position:sticky` with computed left/right offsets, CSS in `dom.css` | GAP-WP (plugin lacks it) |
 | Column resize | Free | none | GAP-JS |
@@ -117,7 +117,7 @@ The library column now reflects the v3 architecture shipped across PRs #351-#373
 
 Remaining P1 gaps: pagination per-page selector + jump-to-page UI (#329), search highlight wiring + fuzzy as default (#330).
 
-Remaining P2 gaps: bulk fill UI, bulk edit modal, diff badge (#333); detail popup, row-link, auto-refresh, skeleton loader (#335); saved filter preset UI, URL pre-filter (#337); column resize (#338); server-proxy recipes docs (#339).
+Remaining P2 gaps: bulk fill UI, bulk edit modal, diff badge (#333); detail popup, row-link, auto-refresh, skeleton loader (#335); column resize (#338).
 
 ## Priorities
 
