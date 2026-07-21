@@ -441,6 +441,46 @@ describe('core/state module', () => {
     expect((s.getState().rows[0] as Person).name).toBe('Changed');
   });
 
+  it('undo emits history:undo with the changed field and values (for the toast, #332)', () => {
+    const s = make();
+    const seen: unknown[] = [];
+    s.on('history:undo', (p) => seen.push(p));
+    s.editCell(1, 'name', 'Changed');
+    s.commitEdit();
+
+    s.undo();
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      column: 'name',
+      value: 'Charlie', // value AFTER undo (restored)
+      previousValue: 'Changed', // value BEFORE undo
+      changed: 1,
+    });
+  });
+
+  it('redo emits history:redo with the changed field and values', () => {
+    const s = make();
+    const seen: unknown[] = [];
+    s.on('history:redo', (p) => seen.push(p));
+    s.editCell(1, 'name', 'Changed');
+    s.commitEdit();
+    s.undo();
+
+    s.redo();
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ column: 'name', value: 'Changed', previousValue: 'Charlie', changed: 1 });
+  });
+
+  it('a no-op undo (empty history) emits no history:undo event', () => {
+    const s = make();
+    const seen: unknown[] = [];
+    s.on('history:undo', (p) => seen.push(p));
+    s.undo();
+    expect(seen).toHaveLength(0);
+  });
+
   it('undo past history is a no-op', () => {
     const s = make();
     expect(() => s.undo()).not.toThrow();

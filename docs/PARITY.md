@@ -68,7 +68,7 @@ These are NOT parity gaps and will not get issues:
 | Inline editing | Pro: text, textarea, select, date, toggle, lookup | SOLID: 14 types + lookup + custom registry | GAP-WP (number, email, url, datetime, multiselect, checkbox, color, range) |
 | Validation | Pro: required, length, min/max, regex | SOLID: those + unique, oneOf/notOneOf, phone, date bounds, custom fn | GAP-WP (unique, oneOf, custom fn) |
 | Keyboard spreadsheet nav | Pro | SOLID (`render/a11y.ts` `mountRovingTabindex`: arrows, Home/End/PageUp/PageDown, Enter/F2/Escape/Space; wired in `dom.ts`) | OK |
-| Undo/redo | Pro (+ toast) | history stack in `core/state.ts` + `store.undo()`/`redo()` + wrapper proxy; no visual toast | GAP-JS (toast only) |
+| Undo/redo | Pro (+ toast) | history stack in `core/state.ts` + `store.undo()`/`redo()` + wrapper proxy; `history:undo`/`history:redo` events drive an auto-dismissing toast in `render/dom.ts` | OK |
 | Add row (modal) | Pro | SOLID | OK |
 | Duplicate row (+ field locking) | Pro | SOLID (`editing/duplicate.ts` + `DUPLICATE_ROW` action wired in `dom.ts` context menu) | OK |
 | Bulk delete | Pro | SOLID | OK |
@@ -111,11 +111,11 @@ The library column now reflects the v3 architecture shipped across PRs #351-#373
 - **Conditional formatting rules engine** shipped: `cells/conditional.ts` (rules, colorScale, dataBar, icon kinds).
 - **Arrow-key grid nav** shipped: `render/a11y.ts` `mountRovingTabindex` + dom.ts wiring.
 - **Duplicate row** shipped: `editing/duplicate.ts` + `DUPLICATE_ROW` action in dom.ts context menu.
-- **Undo/redo history** shipped: `core/state.ts` stack + `store.undo()`/`redo()` + wrapper proxy; visual toast pending.
+- **Undo/redo history** shipped: `core/state.ts` stack + `store.undo()`/`redo()` + wrapper proxy, with an auto-dismissing toast driven by `history:undo`/`history:redo` events (#332).
 - **Aria-live regions** shipped: `render/a11y.ts` `createLiveRegion` wired in dom.ts.
 - **Context menu** completed in dom.ts: right-click trigger, Popover API positioning + fallback, keyboard nav.
 
-Remaining P1 gaps: pagination per-page selector + jump-to-page UI (#329), search highlight wiring + fuzzy as default (#330), undo/redo toast (#332).
+Remaining P1 gaps: pagination per-page selector + jump-to-page UI (#329), search highlight wiring + fuzzy as default (#330).
 
 Remaining P2 gaps: bulk fill UI, bulk edit modal, diff badge (#333); detail popup, row-link, auto-refresh, skeleton loader (#335); saved filter preset UI, URL pre-filter (#337); column pinning (#328); column resize (#338); server-proxy recipes docs (#339).
 

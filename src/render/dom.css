@@ -392,6 +392,40 @@
   .tc-root[data-card-mode='true'] .tc-cards-container {
     display: grid;
   }
+
+  /* Undo/redo toast (#332): non-blocking, bottom-center, auto-dismissing. */
+  .tc-toast-layer {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    z-index: 1100;
+    pointer-events: none;
+  }
+
+  .tc-toast {
+    pointer-events: auto;
+    max-width: 90vw;
+    padding: 0.625rem 1rem;
+    border-radius: 8px;
+    background: var(--tc-toast-bg, #1f2937);
+    color: var(--tc-toast-fg, #f9fafb);
+    font-size: 0.875rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    animation: tc-toast-in 0.15s ease-out;
+  }
+
+  @keyframes tc-toast-in {
+    from { opacity: 0; transform: translateY(0.5rem); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tc-toast { animation: none; }
+  }
 }
 
 /* =========================================================================

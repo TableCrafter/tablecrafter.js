@@ -450,6 +450,37 @@ export function createTable(config: TableCrafterConfig): TableCrafterStore {
   function snapshotRows(): unknown[] {
     return rows.map((r) => (isRecord(r) ? { ...r } : r));
   }
+
+  /**
+   * Find the first cell that differs between two row snapshots and count all
+   * differing cells. Used to describe an undo/redo for the toast (#332): the
+   * history stack stores full-row snapshots, so the changed field/values are
+   * recovered by diffing the current rows against the restored snapshot.
+   */
+  function firstCellDiff(
+    before: unknown[],
+    after: unknown[]
+  ): { column: string; from: unknown; to: unknown; changed: number } | null {
+    let first: { column: string; from: unknown; to: unknown } | null = null;
+    let changed = 0;
+    const n = Math.max(before.length, after.length);
+    for (let i = 0; i < n; i++) {
+      const b = before[i];
+      const a = after[i];
+      if (isRecord(b) && isRecord(a)) {
+        for (const key of new Set([...Object.keys(b), ...Object.keys(a)])) {
+          if (b[key] !== a[key]) {
+            changed++;
+            if (!first) first = { column: key, from: b[key], to: a[key] };
+          }
+        }
+      } else if (b !== a) {
+        changed++;
+        if (!first) first = { column: '', from: b, to: a };
+      }
+    }
+    return first ? { ...first, changed } : null;
+  }
   function pushHistory(): void {
     undoStack.push(snapshotRows());
     if (undoStack.length > HISTORY_CAP) undoStack.shift();
@@ -739,22 +770,40 @@ export function createTable(config: TableCrafterConfig): TableCrafterStore {
   function doUndo(): void {
     const prev = undoStack.pop();
     if (!prev) return;
+    const diff = firstCellDiff(rows, prev);
     redoStack.push(snapshotRows());
     rows = prev;
     editingCell = null;
     pendingEditValue = undefined;
     notify();
+    if (diff) {
+      emitter.emit('history:undo', {
+        column: diff.column,
+        value: diff.to,
+        previousValue: diff.from,
+        changed: diff.changed,
+      });
+    }
   }
 
   function doRedo(): void {
     const next = redoStack.pop();
     if (!next) return;
+    const diff = firstCellDiff(rows, next);
     undoStack.push(snapshotRows());
     if (undoStack.length > HISTORY_CAP) undoStack.shift();
     rows = next;
     editingCell = null;
     pendingEditValue = undefined;
     notify();
+    if (diff) {
+      emitter.emit('history:redo', {
+        column: diff.column,
+        value: diff.to,
+        previousValue: diff.from,
+        changed: diff.changed,
+      });
+    }
   }
 
   function doSetRows(next: unknown[]): void {
