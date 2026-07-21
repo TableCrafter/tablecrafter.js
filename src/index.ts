@@ -101,6 +101,12 @@ export interface WrapperConfig extends Omit<TableCrafterConfig, 'columns'> {
   /** Mirror the active column filters into the URL query string (`?tc_field=`)
    *  via history.pushState so the filtered view is bookmarkable (#337). */
   syncUrl?: boolean | undefined;
+  /** Show an eye-icon detail-popup button per row (#335). */
+  detailPopup?: boolean | undefined;
+  /** Placeholder skeleton row count during initial load (#335, default 5). */
+  skeletonRows?: number | undefined;
+  /** Re-fetch the data source URL every N seconds and re-render (#335). */
+  autoRefresh?: number | undefined;
 
   // ---- v2 compat -------------------------------------------------------
   /**
@@ -216,6 +222,8 @@ export class TableCrafter {
       columns: normalizedColumns,
       role: config.role,
       locale,
+      detailPopup: config.detailPopup,
+      skeletonRows: config.skeletonRows,
     };
 
     // 11. Filter presets + URL sync (#337)
@@ -240,12 +248,20 @@ export class TableCrafter {
     // 12. Auto-load if data is a URL string (do not call for inline array data)
     if (typeof config.data === 'string') {
       void this.store.load();
+
+      // Auto-refresh: periodic re-fetch of the data URL (#335).
+      if (typeof config.autoRefresh === 'number' && config.autoRefresh > 0) {
+        this._refreshTimer = setInterval(() => {
+          void this.store.load();
+        }, config.autoRefresh * 1000);
+      }
     }
   }
 
   private readonly _tableId: string;
   private readonly _presets: PresetStore;
   private readonly _syncUrl: boolean;
+  private _refreshTimer: ReturnType<typeof setInterval> | null = null;
 
   /** Serialize the current filters into the URL query string. */
   private _writeUrl(): void {
@@ -287,6 +303,10 @@ export class TableCrafter {
 
   /** Unmount the renderer and destroy the store. */
   destroy(): void {
+    if (this._refreshTimer !== null) {
+      clearInterval(this._refreshTimer);
+      this._refreshTimer = null;
+    }
     this.renderer?.destroy();
     this.renderer = null;
     this.store.destroy();

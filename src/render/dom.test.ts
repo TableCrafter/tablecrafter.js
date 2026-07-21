@@ -722,6 +722,92 @@ describe('pagination — jump-to-page input', () => {
   });
 });
 
+describe('row UX batch (#335)', () => {
+  const ROW_COLS: TableCrafterColumn[] = [
+    { key: 'id', label: 'ID' },
+    { key: 'name', label: 'Name' },
+  ];
+  const ROWS = [
+    { id: 1, name: 'Charlie' },
+    { id: 2, name: 'Alice' },
+  ];
+
+  it('renders skeleton rows during an initial load', () => {
+    const store = makeStore({ columns: ROW_COLS, data: [] });
+    const r = mountTable(store, host, { columns: ROW_COLS, skeletonRows: 4 });
+    // Drive a loading state with no rows yet (initial fetch in flight).
+    r.update({ ...store.getState(), loading: true });
+    expect(host.querySelectorAll('.tc-skeleton-row').length).toBe(4);
+    expect(host.querySelectorAll('.tc-skeleton-row .tc-skeleton').length).toBeGreaterThan(0);
+    r.destroy();
+  });
+
+  it('opens a detail modal with all fields on the eye button, closes on Escape', () => {
+    const store = makeStore({ columns: ROW_COLS, data: ROWS.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: ROW_COLS, detailPopup: true });
+
+    const eye = host.querySelector('.tc-detail-btn') as HTMLButtonElement;
+    expect(eye).not.toBeNull();
+    eye.click();
+
+    const modal = host.querySelector('.tc-detail-modal') as HTMLElement;
+    expect(modal.classList.contains('tc-hidden')).toBe(false);
+    expect(modal.textContent).toContain('Charlie');
+    expect(modal.querySelector('.tc-detail-value[data-col="name"]')?.textContent).toBe('Charlie');
+
+    host.querySelector('.tc-root')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(modal.classList.contains('tc-hidden')).toBe(true);
+    r.destroy();
+  });
+
+  it('closes the detail modal on the close button', () => {
+    const store = makeStore({ columns: ROW_COLS, data: ROWS.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: ROW_COLS, detailPopup: true });
+    (host.querySelector('.tc-detail-btn') as HTMLButtonElement).click();
+    (host.querySelector('.tc-detail-close') as HTMLButtonElement).click();
+    expect((host.querySelector('.tc-detail-modal') as HTMLElement).classList.contains('tc-hidden')).toBe(true);
+    r.destroy();
+  });
+
+  it('expands rowLink tokens from row data onto each row', () => {
+    const cols = ROW_COLS.map((c) => (c.key === 'name' ? { ...c, rowLink: '/records/{id}' } : c));
+    const store = makeStore({ columns: cols, data: ROWS.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: cols });
+
+    const rows = host.querySelectorAll('.tc-row');
+    expect((rows[0] as HTMLElement).dataset.rowLink).toBe('/records/1');
+    expect((rows[1] as HTMLElement).dataset.rowLink).toBe('/records/2');
+    expect((rows[0] as HTMLElement).classList.contains('tc-row-link')).toBe(true);
+    r.destroy();
+  });
+
+  it('navigates on a row-link click', () => {
+    const navigate = vi.fn();
+    const cols = ROW_COLS.map((c) => (c.key === 'name' ? { ...c, rowLink: '/records/{id}' } : c));
+    const store = makeStore({ columns: cols, data: ROWS.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: cols, navigate });
+
+    (host.querySelector('.tc-cell[data-col="name"]') as HTMLElement).click();
+    expect(navigate).toHaveBeenCalledWith('/records/1');
+    r.destroy();
+  });
+
+  it('shows a "Last updated" label after a load completes', () => {
+    const store = makeStore({ columns: ROW_COLS, data: ROWS.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: ROW_COLS });
+    const label = host.querySelector('.tc-last-updated') as HTMLElement;
+    expect(label.classList.contains('tc-hidden')).toBe(true);
+
+    // Simulate a fetch cycle: loading true, then false.
+    r.update({ ...store.getState(), loading: true });
+    r.update({ ...store.getState(), loading: false });
+
+    expect(label.classList.contains('tc-hidden')).toBe(false);
+    expect(label.textContent).toMatch(/Last updated: \d{2}:\d{2}:\d{2}/);
+    r.destroy();
+  });
+});
+
 describe('saved filter preset UI (#337)', () => {
   function presetController() {
     const saved: string[] = [];
