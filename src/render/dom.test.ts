@@ -722,6 +722,99 @@ describe('pagination — jump-to-page input', () => {
   });
 });
 
+describe('editing parity batch — bulk UI + diff badge (#333)', () => {
+  const EDIT_COLS: TableCrafterColumn[] = [
+    { key: 'name', label: 'Name', editable: true },
+    { key: 'status', label: 'Status', editable: true },
+    { key: 'readonly', label: 'Read only' },
+  ];
+  const EDIT_DATA = [
+    { id: 1, name: 'Alice', status: 'open', readonly: 'x' },
+    { id: 2, name: 'Bob', status: 'closed', readonly: 'y' },
+  ];
+
+  it('shows the bulk bar only while rows are selected', () => {
+    const store = makeStore({ columns: EDIT_COLS, data: EDIT_DATA.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: EDIT_COLS });
+    const bar = host.querySelector('.tc-bulk-bar') as HTMLElement;
+    expect(bar.classList.contains('tc-hidden')).toBe(true);
+
+    store.select(1);
+    expect(bar.classList.contains('tc-hidden')).toBe(false);
+    store.deselectAll();
+    expect(bar.classList.contains('tc-hidden')).toBe(true);
+    r.destroy();
+  });
+
+  it('Fill column applies a value to the chosen column across selected rows', () => {
+    const store = makeStore({ columns: EDIT_COLS, data: EDIT_DATA.map((r) => ({ ...r })) });
+    const bulkFill = vi.spyOn(store, 'bulkFill');
+    const r = mountTable(store, host, { columns: EDIT_COLS });
+    store.select(1, true);
+    store.select(2, true);
+
+    (host.querySelector('.tc-bulk-fill') as HTMLButtonElement).click();
+    const select = host.querySelector('.tc-bulk-col-select') as HTMLSelectElement;
+    select.value = 'status';
+    (host.querySelector('.tc-bulk-value') as HTMLInputElement).value = 'archived';
+    (host.querySelector('.tc-bulk-apply') as HTMLButtonElement).click();
+
+    expect(bulkFill).toHaveBeenCalledWith([1, 2], 'status', 'archived');
+    // Only editable columns are offered.
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['name', 'status']);
+    r.destroy();
+  });
+
+  it('Bulk edit applies each checked column to selected rows', () => {
+    const store = makeStore({ columns: EDIT_COLS, data: EDIT_DATA.map((r) => ({ ...r })) });
+    const bulkFill = vi.spyOn(store, 'bulkFill');
+    const r = mountTable(store, host, { columns: EDIT_COLS });
+    store.select(1);
+
+    (host.querySelector('.tc-bulk-edit') as HTMLButtonElement).click();
+    const checks = host.querySelectorAll('.tc-bulk-check');
+    const inputs = host.querySelectorAll('.tc-bulk-field-input');
+    // Check "status" only (index 1).
+    (checks[1] as HTMLInputElement).checked = true;
+    (inputs[1] as HTMLInputElement).value = 'done';
+    (host.querySelector('.tc-bulk-apply') as HTMLButtonElement).click();
+
+    expect(bulkFill).toHaveBeenCalledTimes(1);
+    expect(bulkFill).toHaveBeenCalledWith([1], 'status', 'done');
+    r.destroy();
+  });
+
+  it('shows a "was:" diff badge after an edit and removes it after 4s', () => {
+    vi.useFakeTimers();
+    try {
+      const store = makeStore({ columns: EDIT_COLS, data: EDIT_DATA.map((r) => ({ ...r })) });
+      const r = mountTable(store, host, { columns: EDIT_COLS, editDiffBadge: true });
+
+      store.editCell(1, 'name', 'Alicia');
+      store.commitEdit();
+
+      const badge = host.querySelector('.tc-cell[data-col="name"] .tc-diff-badge') as HTMLElement;
+      expect(badge).not.toBeNull();
+      expect(badge.textContent).toContain('Alice'); // previous value
+
+      vi.advanceTimersByTime(4000);
+      expect(host.querySelector('.tc-diff-badge')).toBeNull();
+      r.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not show a diff badge when the option is off', () => {
+    const store = makeStore({ columns: EDIT_COLS, data: EDIT_DATA.map((r) => ({ ...r })) });
+    const r = mountTable(store, host, { columns: EDIT_COLS });
+    store.editCell(1, 'name', 'Alicia');
+    store.commitEdit();
+    expect(host.querySelector('.tc-diff-badge')).toBeNull();
+    r.destroy();
+  });
+});
+
 describe('per-column role restrictions + column resize (#338)', () => {
   const ROLE_COLS: TableCrafterColumn[] = [
     { key: 'name', label: 'Name', editable: true },

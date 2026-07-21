@@ -72,9 +72,9 @@ These are NOT parity gaps and will not get issues:
 | Add row (modal) | Pro | SOLID | OK |
 | Duplicate row (+ field locking) | Pro | SOLID (`editing/duplicate.ts` + `DUPLICATE_ROW` action wired in `dom.ts` context menu) | OK |
 | Bulk delete | Pro | SOLID | OK |
-| Bulk column fill | Pro (+ diff preview) | callback only, no UI | GAP-JS |
-| Bulk edit modal | none (column fill covers) | callback only | GAP-JS (modal) |
-| Edit diff badge ("was: X") | Free | none | GAP-JS |
+| Bulk column fill | Pro (+ diff preview) | `store.bulkFill` + a toolbar "Fill column" panel (pick column + value, applied to all selected rows) | OK |
+| Bulk edit modal | none (column fill covers) | "Bulk edit" modal: check any editable columns + set values, applied to all selected rows | OK |
+| Edit diff badge ("was: X") | Free | `editDiffBadge:true` shows a fading "was: X" badge on the cell after an inline commit (4s) | OK |
 | Per-column role restriction | Pro (server-enforced) | SOLID advisory: `column.editableRoles` + `setCurrentUser({roles})` re-gates the editor; `showPermissionTooltip` on restricted cells; README + JSDoc mark it client-side advisory, server enforces | OK |
 | Row-level ownership (`ownOnly`) | Free (current-user filter) | SOLID | OK |
 
@@ -117,7 +117,7 @@ The library column now reflects the v3 architecture shipped across PRs #351-#373
 
 Remaining P1 gaps: pagination per-page selector + jump-to-page UI (#329), search highlight wiring + fuzzy as default (#330).
 
-Remaining P2 gaps: bulk fill UI, bulk edit modal, diff badge (#333).
+Remaining P2 gaps: none — all P1 and P2 parity items are OK.
 
 ## Priorities
 
